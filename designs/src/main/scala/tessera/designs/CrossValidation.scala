@@ -374,22 +374,57 @@ private[designs] object ShuffleSplitSupport:
       role: NamedRole,
       seed: Seed
   ): Split[Selection] =
-    val shuffled = DesignSupport.shuffledIndices(n, seed)
-    val named = Array.tabulate(namedSize)(shuffled(_))
-    val other = Array.tabulate(n - namedSize)(index =>
-      shuffled(namedSize + index)
-    )
-    scala.util.Sorting.quickSort(named)
-    scala.util.Sorting.quickSort(other)
+    val (named, other) = sampledRoles(n, namedSize, seed)
     val namedSelection =
-      Selection.fromOwned(IArray.unsafeFromArray(named), n)
+      Selection.fromOwned(named, n)
     val otherSelection =
-      Selection.fromOwned(IArray.unsafeFromArray(other), n)
+      Selection.fromOwned(other, n)
     role match
       case NamedRole.Assessing =>
         Split.unsafe(otherSelection, namedSelection)
       case NamedRole.Analyzing =>
         Split.unsafe(namedSelection, otherSelection)
+
+  /** Produces the same sorted role selections as a complete Fisher-Yates
+    * shuffle followed by sorting both sides.
+    *
+    * Once the shuffle has processed position `namedSize`, later swaps only
+    * permute the named prefix. Because `Selection` discards that order, a
+    * membership scan can emit both roles directly in canonical order.
+    */
+  private[designs] def sampledRoles(
+      n: Int,
+      namedSize: Int,
+      seed: Seed
+  ): (IArray[Int], IArray[Int]) =
+    val shuffled =
+      Rand
+        .fromSeed(seed)
+        .shufflePrefixIndicesUnsafe(n, namedSize)
+
+    val isNamed = new Array[Boolean](n)
+    var index = 0
+    while index < namedSize do
+      isNamed(shuffled(index)) = true
+      index += 1
+
+    val named = new Array[Int](namedSize)
+    val other = new Array[Int](n - namedSize)
+    var namedIndex = 0
+    var otherIndex = 0
+    index = 0
+    while index < n do
+      if isNamed(index) then
+        named(namedIndex) = index
+        namedIndex += 1
+      else
+        other(otherIndex) = index
+        otherIndex += 1
+      index += 1
+    (
+      IArray.unsafeFromArray(named),
+      IArray.unsafeFromArray(other)
+    )
 
 final class LeaveOneOut private ()
     extends Design[Split[Selection], Coverage.ExactOnce]:

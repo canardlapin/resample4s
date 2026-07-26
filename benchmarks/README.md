@@ -119,3 +119,7 @@ Use repeated runs on an otherwise idle machine before making a performance
 decision. Checked-in results are provenance-bearing directional evidence, not a
 release guarantee or a substitute for Tessera's deterministic complexity
 guardrails.
+
+The profile, exact-equivalence argument, and differential evidence for the
+Monte Carlo kernel are recorded in
+[`../docs/performance/monte-carlo-2026-07-26.md`](../docs/performance/monte-carlo-2026-07-26.md).

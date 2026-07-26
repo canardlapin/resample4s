@@ -36,6 +36,14 @@ Initial cross-platform release candidate.
   contract tests, raw evidence, allocation-quality diagnostics, and
   interpretation-bounded reports are included.
 
+### Changed
+
+- Monte Carlo and holdout now use an exact-equivalent partial Fisher–Yates
+  kernel plus a linear canonical-role scan. Bounded `Int` draws use primitive
+  unsigned rejection arithmetic instead of allocating `BigInt` operands.
+  Differential oracles and cross-platform golden fixtures lock the previous
+  seed-to-artifact mapping.
+
 ### Integration
 
 - Alder integration validates ordinal-to-`RowId` interpretation, canonical

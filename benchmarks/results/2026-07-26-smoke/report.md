@@ -4,30 +4,30 @@ Each timed cell generates canonical zero-based analysis and assessment ordinals 
 
 | Case | Library | Median ms | Relative to Tessera | Primary quality | Assessment ordinals |
 |---|---:|---:|---:|---:|---:|
-| bootstrap-smoke | tessera 0.1.0-SNAPSHOT | 1.746 | 1.00x | 0 | 1823 |
-| bootstrap-smoke | rsample 1.3.2 | 1.470 | 0.84x | 0 | 1808 |
-| grouped-smoke | tessera 0.1.0-SNAPSHOT | 0.948 | 1.00x | 0 | 1200 |
-| grouped-smoke | rsample 1.3.2 | 164.375 | 173.32x | 5 | 1200 |
-| grouped-smoke | scikit-learn 1.7.1 | 0.256 | 0.27x | 0 | 1200 |
-| grouped-smoke | splitTools 1.0.1 | 0.290 | 0.31x | 64 | 1200 |
-| grouped-stratified-smoke | tessera 0.1.0-SNAPSHOT | 1.291 | 1.00x | 300 | 1200 |
-| grouped-stratified-smoke | rsample 1.3.2 | 148.901 | 115.34x | 26950 | 1200 |
-| grouped-stratified-smoke | scikit-learn 1.7.1 | 8.258 | 6.40x | 339150 | 1200 |
-| kfold-smoke | tessera 0.1.0-SNAPSHOT | 1.834 | 1.00x | 0 | 2000 |
-| kfold-smoke | rsample 1.3.2 | 2.505 | 1.37x | 0 | 2000 |
-| kfold-smoke | scikit-learn 1.7.1 | 0.328 | 0.18x | 0 | 2000 |
-| kfold-smoke | splitTools 1.0.1 | 0.576 | 0.31x | 0 | 2000 |
-| loo-smoke | tessera 0.1.0-SNAPSHOT | 0.220 | 1.00x | 0 | 200 |
-| loo-smoke | rsample 1.3.2 | 17.885 | 81.30x | 0 | 200 |
-| loo-smoke | scikit-learn 1.7.1 | 1.396 | 6.35x | 0 | 200 |
-| loo-smoke | splitTools 1.0.1 | 4.171 | 18.96x | 0 | 200 |
-| monte-carlo-smoke | tessera 0.1.0-SNAPSHOT | 2.332 | 1.00x | 0 | 2000 |
-| monte-carlo-smoke | rsample 1.3.2 | 1.987 | 0.85x | 0 | 2000 |
-| monte-carlo-smoke | scikit-learn 1.7.1 | 0.327 | 0.14x | 0 | 2000 |
-| stratified-smoke | tessera 0.1.0-SNAPSHOT | 1.599 | 1.00x | 0 | 2400 |
-| stratified-smoke | rsample 1.3.2 | 4.306 | 2.69x | 0 | 2400 |
-| stratified-smoke | scikit-learn 1.7.1 | 0.634 | 0.40x | 0 | 2400 |
-| stratified-smoke | splitTools 1.0.1 | 0.886 | 0.55x | 0 | 2400 |
+| bootstrap-smoke | tessera 0.1.0-SNAPSHOT | 1.588 | 1.00x | 0 | 1823 |
+| bootstrap-smoke | rsample 1.3.2 | 1.577 | 0.99x | 0 | 1808 |
+| grouped-smoke | tessera 0.1.0-SNAPSHOT | 0.952 | 1.00x | 0 | 1200 |
+| grouped-smoke | rsample 1.3.2 | 172.549 | 181.20x | 5 | 1200 |
+| grouped-smoke | scikit-learn 1.7.1 | 0.282 | 0.30x | 0 | 1200 |
+| grouped-smoke | splitTools 1.0.1 | 0.301 | 0.32x | 64 | 1200 |
+| grouped-stratified-smoke | tessera 0.1.0-SNAPSHOT | 1.301 | 1.00x | 300 | 1200 |
+| grouped-stratified-smoke | rsample 1.3.2 | 147.977 | 113.71x | 26950 | 1200 |
+| grouped-stratified-smoke | scikit-learn 1.7.1 | 8.041 | 6.18x | 339150 | 1200 |
+| kfold-smoke | tessera 0.1.0-SNAPSHOT | 1.684 | 1.00x | 0 | 2000 |
+| kfold-smoke | rsample 1.3.2 | 2.787 | 1.65x | 0 | 2000 |
+| kfold-smoke | scikit-learn 1.7.1 | 0.316 | 0.19x | 0 | 2000 |
+| kfold-smoke | splitTools 1.0.1 | 0.529 | 0.31x | 0 | 2000 |
+| loo-smoke | tessera 0.1.0-SNAPSHOT | 0.223 | 1.00x | 0 | 200 |
+| loo-smoke | rsample 1.3.2 | 18.339 | 82.13x | 0 | 200 |
+| loo-smoke | scikit-learn 1.7.1 | 1.503 | 6.73x | 0 | 200 |
+| loo-smoke | splitTools 1.0.1 | 4.298 | 19.25x | 0 | 200 |
+| monte-carlo-smoke | tessera 0.1.0-SNAPSHOT | 0.704 | 1.00x | 0 | 2000 |
+| monte-carlo-smoke | rsample 1.3.2 | 2.045 | 2.91x | 0 | 2000 |
+| monte-carlo-smoke | scikit-learn 1.7.1 | 0.307 | 0.44x | 0 | 2000 |
+| stratified-smoke | tessera 0.1.0-SNAPSHOT | 1.594 | 1.00x | 0 | 2400 |
+| stratified-smoke | rsample 1.3.2 | 4.329 | 2.72x | 0 | 2400 |
+| stratified-smoke | scikit-learn 1.7.1 | 0.627 | 0.39x | 0 | 2400 |
+| stratified-smoke | splitTools 1.0.1 | 0.858 | 0.54x | 0 | 2400 |
 
 A relative value above 1 means that the comparator took longer than Tessera in this run. It is not a universal speed claim.
 

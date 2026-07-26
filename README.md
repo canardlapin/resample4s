@@ -21,7 +21,7 @@ reason nested cross-validation cannot reach an outer assessment fold.
 
 This repository is currently `0.1.0-SNAPSHOT`. The fresh-context review and
 Alder integration gates are complete; the public surface is not frozen until
-the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.8;
+the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.9;
 rolling-origin/time-series designs are explicitly deferred.
 
 ## Example

@@ -50,6 +50,45 @@ final class RandomSuite extends munit.FunSuite:
     )
   }
 
+  test("bounded Int draws match the BigInt rejection oracle") {
+    def oracle(
+        random: Rand,
+        bound: Int
+    ): (Rand, Int) =
+      val bigBound = BigInt(bound)
+      val threshold = (BigInt(1) << 64) % bigBound
+      var current = random
+      var result: Option[Int] = None
+      while result.isEmpty do
+        val (next, word) = current.nextLong
+        current = next
+        val unsigned = Rand.unsigned(word)
+        if unsigned >= threshold then
+          result = Some((unsigned % bigBound).toInt)
+      (current, result.getOrElse(fail("oracle must accept a draw")))
+
+    val bounds =
+      Vector(1, 2, 3, 7, 37, 65536, 100000, Int.MaxValue)
+    val seeds =
+      Vector(0L, 1L, -1L, 42L, Long.MinValue, Long.MaxValue)
+    bounds.foreach { bound =>
+      seeds.foreach { seed =>
+        var optimized = Rand.fromSeed(Seed.fromLong(seed))
+        var reference = Rand.fromSeed(Seed.fromLong(seed))
+        var index = 0
+        while index < 100 do
+          val (optimizedNext, optimizedValue) =
+            right(optimized.nextIntBounded(bound))
+          val (referenceNext, referenceValue) =
+            oracle(reference, bound)
+          assertEquals(optimizedValue, referenceValue)
+          optimized = optimizedNext
+          reference = referenceNext
+          index += 1
+      }
+    }
+  }
+
   test("BigInt bounded draws support bounds wider than one word") {
     val upper = (BigInt(1) << 130) + BigInt(12345)
     var rand = Rand.fromSeed(Seed.fromLong(42L))

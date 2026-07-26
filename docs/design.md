@@ -106,6 +106,12 @@ maintainers need when changing code.
     heuristics may choose different legal assignments. Grouped-stratified
     quality is reported beside time, and rsample's public data-frame workflow
     is labeled separately from scikit-learn/splitTools index kernels.
+34. Performance kernels may exploit representation-transparent equivalences,
+    but cannot redefine seeded behavior. `Int` rejection implements the same
+    unsigned threshold/modulo rule without `BigInt`; shuffle-split stops when
+    the named prefix set is fixed and emits its two sorted roles by membership
+    scan. BigInt-oracle, complete-shuffle differential, golden-fixture, and
+    semantic-parity tests jointly guard the change.
 
 ## Evidence policy
 

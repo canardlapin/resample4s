@@ -109,16 +109,8 @@ final class Rand private (private val state: Long):
     while index < values.length do
       shuffled(index) = values(index)
       index += 1
-    var current = this
-    index = shuffled.length - 1
-    while index > 0 do
-      val (next, selected) = current.nextIntBoundedUnsafe(index + 1)
-      val held = shuffled(index)
-      shuffled(index) = shuffled(selected)
-      shuffled(selected) = held
-      current = next
-      index -= 1
-    (current, IArray.unsafeFromArray(shuffled))
+    val next = shuffleOwnedPrefix(shuffled, stopAt = 1)
+    (next, IArray.unsafeFromArray(shuffled))
 
   def shuffleIndices(
       size: Int
@@ -132,20 +124,71 @@ final class Rand private (private val state: Long):
         index += 1
       Right(shuffle(IArray.unsafeFromArray(values)))
 
+  /** Initializes an owned identity array and fixes its prefix membership.
+    *
+    * The caller must provide `0 <= prefixSize <= size`. The returned array is
+    * newly allocated and may be transferred to an immutable owner.
+    */
+  private[tessera] def shufflePrefixIndicesUnsafe(
+      size: Int,
+      prefixSize: Int
+  ): IArray[Int] =
+    val values = new Array[Int](size)
+    var index = 0
+    while index < size do
+      values(index) = index
+      index += 1
+    shuffleOwnedPrefix(values, stopAt = prefixSize)
+    IArray.unsafeFromArray(values)
+
+  /** Mutates an owned identity/value array with the Fisher-Yates steps needed
+    * to fix the set in `[0, stopAt)`.
+    *
+    * Keeping the SplitMix state in a primitive local avoids one `Rand` and two
+    * boxed tuple values per swap. The returned state is exactly the state that
+    * repeated `nextIntBoundedUnsafe` calls would produce.
+    */
+  private def shuffleOwnedPrefix(
+      values: Array[Int],
+      stopAt: Int
+  ): Rand =
+    var currentState = state
+    var drew = false
+    var index = values.length - 1
+    while index >= stopAt do
+      val bound = index.toLong + 1L
+      val threshold =
+        java.lang.Long.remainderUnsigned(-bound, bound)
+      var accepted = false
+      var selected = 0
+      while !accepted do
+        currentState += Rand.Gamma
+        val word = Rand.mix64(currentState)
+        if java.lang.Long.compareUnsigned(word, threshold) >= 0 then
+          selected =
+            java.lang.Long.remainderUnsigned(word, bound).toInt
+          accepted = true
+      val held = values(index)
+      values(index) = values(selected)
+      values(selected) = held
+      drew = true
+      index -= 1
+    if drew then new Rand(currentState) else this
+
   private[tessera] def nextIntBoundedUnsafe(
       upperExclusive: Int
   ): (Rand, Int) =
-    val bound = BigInt(upperExclusive)
-    val threshold = Rand.TwoTo64 % bound
+    val bound = upperExclusive.toLong
+    val threshold =
+      java.lang.Long.remainderUnsigned(-bound, bound)
     var current = this
     var accepted = false
     var result = 0
     while !accepted do
       val (next, word) = current.nextLong
       current = next
-      val unsigned = Rand.unsigned(word)
-      if unsigned >= threshold then
-        result = (unsigned % bound).toInt
+      if java.lang.Long.compareUnsigned(word, threshold) >= 0 then
+        result = java.lang.Long.remainderUnsigned(word, bound).toInt
         accepted = true
     (current, result)
 
@@ -181,8 +224,6 @@ object Rand:
   private val PathFrame = 0x632be59bd9b4e019L
   private val DomainFrame = 0x8cb92ba72f3d8dd7L
   private val OrdinalFrame = 0x9e3779b185ebca87L
-  private[tessera] val TwoTo64: BigInt = BigInt(1) << 64
-
   def fromSeed(seed: Seed): Rand = new Rand(seed.value)
 
   def derive(

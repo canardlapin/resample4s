@@ -4,8 +4,8 @@ Last verified: 2026-07-26
 
 ## Completed evidence
 
-- `sbt -batch testAll`: 33 core, 46 designs, and 8 laws tests passed
-  independently on JVM, Scala.js, and Scala Native (261 total).
+- `sbt -batch testAll`: 34 core, 47 designs, and 8 laws tests passed
+  independently on JVM, Scala.js, and Scala Native (267 total).
 - `sbt -batch compatibilityAll`: all nine MiMa and TASTy-MiMa tasks passed.
   The previous-artifact set is intentionally empty for the first `0.1.0`
   baseline and becomes `0.1.0` for later versions.
@@ -31,6 +31,12 @@ Last verified: 2026-07-26
   over identical fixtures and contracts. Raw rows, runtimes, quality metrics,
   and interpretation boundaries are preserved under
   `benchmarks/results/2026-07-26-standard/`.
+- The Monte Carlo kernel is differentially identical to the literal `BigInt`
+  rejection and complete Fisher-Yates definitions across JVM, Scala.js, and
+  Scala Native. The refreshed 100,000-row/100-unit standard median is 82.417 ms
+  versus the pre-change 1,248.301 ms on the same machine; JFR evidence and claim
+  boundaries are recorded in
+  `docs/performance/monte-carlo-2026-07-26.md`.
 
 ## Published dependency graph
 

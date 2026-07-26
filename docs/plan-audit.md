@@ -60,8 +60,8 @@ green aggregate count is not treated as proof unless the named gate is covered.
 - Cost guardrails, README, honest-limit Scaladoc, design decisions, CI workflow,
   compatibility policy, type-discipline review, and release-readiness evidence
   exist.
-- The local CI-equivalent test gate passes 33 core, 46 designs, and 8 laws tests
-  on each platform, 261 total.
+- The local CI-equivalent test gate passes 34 core, 47 designs, and 8 laws tests
+  on each platform, 267 total.
 - The user-authorized fresh-context review of `3dc2d77` is complete. Its
   receipt, oracle/diagnostic, and public-law findings were fixed rather than
   waived; the review and resolutions are recorded under `docs/reviews/`.
@@ -70,6 +70,10 @@ green aggregate count is not treated as proof unless the named gate is covered.
   protocol covers 24 supported library/case cells; the standard profile
   preserves 120 raw rows and 24 comparable aggregates with grouped-stratified
   quality reported beside runtime.
+- Profile-guided Monte Carlo/RNG kernels retain exact seed identity under
+  BigInt-rejection and complete-shuffle differential oracles. The standard
+  100,000-row/100-unit Tessera median decreased from 1,248.301 ms to 82.417 ms;
+  the refreshed cross-library artifact contract remains green.
 - Open: hosted CI cannot run until a Git remote exists. Local evidence is not
   mislabeled as hosted-CI evidence.
 

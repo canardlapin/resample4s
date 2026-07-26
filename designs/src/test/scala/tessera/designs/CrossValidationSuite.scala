@@ -321,13 +321,51 @@ def illegal(
       right(Holdout.assessing(fraction).compile(space, seed)).plan
     val analyzing =
       right(Holdout.analyzing(fraction).compile(space, seed)).plan
-    assertEquals(right(assessing.at(UnitKey(0, 0))).assessment.domain, 3)
-    assertEquals(right(analyzing.at(UnitKey(0, 0))).analysis.domain, 3)
+    val assessingSplit = right(assessing.at(UnitKey(0, 0)))
+    val analyzingSplit = right(analyzing.at(UnitKey(0, 0)))
+    assertEquals(assessingSplit.assessment.domain, 3)
+    assertEquals(analyzingSplit.analysis.domain, 3)
+    Vector(assessingSplit, analyzingSplit).foreach { split =>
+      assertEquals(split.analysis.domain + split.assessment.domain, 10)
+      assertEquals(
+        right(split.analysis.intersection(split.assessment)).domain,
+        0
+      )
+    }
 
     val monte =
       right(MonteCarlo.assessing(fraction, 5).compile(space, seed)).plan
     assertEquals(monte.shape, right(PlanShape.of(5, 1)))
     assert(monte.materialize.map(_._2.assessment).distinct.size >= 2)
+  }
+
+  test("shuffle split shortcut matches complete Fisher-Yates semantics") {
+    def vector(values: IArray[Int]): Vector[Int] =
+      Vector.tabulate(values.length)(values(_))
+
+    val seeds = Vector(0L, 1L, -1L, 42L, Long.MinValue)
+    var n = 2
+    while n <= 48 do
+      var namedSize = 1
+      while namedSize < n do
+        seeds.foreach { seedValue =>
+          val seed = Seed.fromLong(seedValue)
+          val full = DesignSupport.shuffledIndices(n, seed)
+          val expectedNamed =
+            Vector.tabulate(namedSize)(full(_)).sorted
+          val expectedOther =
+            Vector
+              .tabulate(n - namedSize)(index =>
+                full(namedSize + index)
+              )
+              .sorted
+          val (named, other) =
+            ShuffleSplitSupport.sampledRoles(n, namedSize, seed)
+          assertEquals(vector(named), expectedNamed)
+          assertEquals(vector(other), expectedOther)
+        }
+        namedSize += 1
+      n += 1
   }
 
   test("LOO and LOGO are exact and enforce degenerate boundaries") {

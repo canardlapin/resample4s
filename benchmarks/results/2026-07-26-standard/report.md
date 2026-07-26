@@ -4,30 +4,30 @@ Each timed cell generates canonical zero-based analysis and assessment ordinals 
 
 | Case | Library | Median ms | Relative to Tessera | Primary quality | Assessment ordinals |
 |---|---:|---:|---:|---:|---:|
-| bootstrap-50k | tessera 0.1.0-SNAPSHOT | 272.565 | 1.00x | 0 | 1839777 |
-| bootstrap-50k | rsample 1.3.2 | 508.759 | 1.87x | 0 | 1839638 |
-| grouped-100k | tessera 0.1.0-SNAPSHOT | 11.457 | 1.00x | 0 | 100000 |
-| grouped-100k | rsample 1.3.2 | 17381.681 | 1517.18x | 0 | 100000 |
-| grouped-100k | scikit-learn 1.7.1 | 30.375 | 2.65x | 0 | 100000 |
-| grouped-100k | splitTools 1.0.1 | 142.688 | 12.45x | 524 | 100000 |
-| grouped-stratified-20k | tessera 0.1.0-SNAPSHOT | 14.618 | 1.00x | 860 | 20000 |
-| grouped-stratified-20k | rsample 1.3.2 | 2896.376 | 198.14x | 71660 | 20000 |
-| grouped-stratified-20k | scikit-learn 1.7.1 | 284.062 | 19.43x | 30116860 | 20000 |
-| kfold-100k | tessera 0.1.0-SNAPSHOT | 55.255 | 1.00x | 0 | 500000 |
-| kfold-100k | rsample 1.3.2 | 472.760 | 8.56x | 0 | 500000 |
-| kfold-100k | scikit-learn 1.7.1 | 120.298 | 2.18x | 0 | 500000 |
-| kfold-100k | splitTools 1.0.1 | 805.181 | 14.57x | 0 | 500000 |
-| loo-2k | tessera 0.1.0-SNAPSHOT | 20.460 | 1.00x | 0 | 2000 |
-| loo-2k | rsample 1.3.2 | 272.697 | 13.33x | 0 | 2000 |
-| loo-2k | scikit-learn 1.7.1 | 83.631 | 4.09x | 0 | 2000 |
-| loo-2k | splitTools 1.0.1 | 127.413 | 6.23x | 0 | 2000 |
-| monte-carlo-100k | tessera 0.1.0-SNAPSHOT | 1248.301 | 1.00x | 0 | 2000000 |
-| monte-carlo-100k | rsample 1.3.2 | 2178.023 | 1.74x | 0 | 2000000 |
-| monte-carlo-100k | scikit-learn 1.7.1 | 301.708 | 0.24x | 0 | 2000000 |
-| stratified-100k | tessera 0.1.0-SNAPSHOT | 52.676 | 1.00x | 0 | 500000 |
-| stratified-100k | rsample 1.3.2 | 487.633 | 9.26x | 0 | 500000 |
-| stratified-100k | scikit-learn 1.7.1 | 145.568 | 2.76x | 0 | 500000 |
-| stratified-100k | splitTools 1.0.1 | 854.423 | 16.22x | 5 | 500000 |
+| bootstrap-50k | tessera 0.1.0-SNAPSHOT | 105.381 | 1.00x | 0 | 1839777 |
+| bootstrap-50k | rsample 1.3.2 | 514.558 | 4.88x | 0 | 1839638 |
+| grouped-100k | tessera 0.1.0-SNAPSHOT | 10.238 | 1.00x | 0 | 100000 |
+| grouped-100k | rsample 1.3.2 | 16369.776 | 1598.85x | 0 | 100000 |
+| grouped-100k | scikit-learn 1.7.1 | 29.417 | 2.87x | 0 | 100000 |
+| grouped-100k | splitTools 1.0.1 | 139.331 | 13.61x | 524 | 100000 |
+| grouped-stratified-20k | tessera 0.1.0-SNAPSHOT | 17.375 | 1.00x | 860 | 20000 |
+| grouped-stratified-20k | rsample 1.3.2 | 2926.173 | 168.42x | 71660 | 20000 |
+| grouped-stratified-20k | scikit-learn 1.7.1 | 274.186 | 15.78x | 30116860 | 20000 |
+| kfold-100k | tessera 0.1.0-SNAPSHOT | 31.379 | 1.00x | 0 | 500000 |
+| kfold-100k | rsample 1.3.2 | 441.437 | 14.07x | 0 | 500000 |
+| kfold-100k | scikit-learn 1.7.1 | 116.738 | 3.72x | 0 | 500000 |
+| kfold-100k | splitTools 1.0.1 | 762.771 | 24.31x | 0 | 500000 |
+| loo-2k | tessera 0.1.0-SNAPSHOT | 21.129 | 1.00x | 0 | 2000 |
+| loo-2k | rsample 1.3.2 | 271.477 | 12.85x | 0 | 2000 |
+| loo-2k | scikit-learn 1.7.1 | 67.546 | 3.20x | 0 | 2000 |
+| loo-2k | splitTools 1.0.1 | 121.825 | 5.77x | 0 | 2000 |
+| monte-carlo-100k | tessera 0.1.0-SNAPSHOT | 82.417 | 1.00x | 0 | 2000000 |
+| monte-carlo-100k | rsample 1.3.2 | 2198.725 | 26.68x | 0 | 2000000 |
+| monte-carlo-100k | scikit-learn 1.7.1 | 272.065 | 3.30x | 0 | 2000000 |
+| stratified-100k | tessera 0.1.0-SNAPSHOT | 36.221 | 1.00x | 0 | 500000 |
+| stratified-100k | rsample 1.3.2 | 472.794 | 13.05x | 0 | 500000 |
+| stratified-100k | scikit-learn 1.7.1 | 138.627 | 3.83x | 0 | 500000 |
+| stratified-100k | splitTools 1.0.1 | 797.210 | 22.01x | 5 | 500000 |
 
 A relative value above 1 means that the comparator took longer than Tessera in this run. It is not a universal speed claim.
 

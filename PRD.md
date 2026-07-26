@@ -2,7 +2,7 @@
 
 **A pure, typed algebra of finite reindexings, partitions, and reproducible randomized designs.**
 
-- Status: proposal v0.8 (benchmarked release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, and semantic-parity Python/R benchmarks (see §12 decision log)
+- Status: proposal v0.9 (performance-hardened release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, semantic-parity Python/R benchmarks, and exact-equivalent Monte Carlo/RNG kernel profiling (see §12 decision log)
 - Working name: `tessera` (a tessera is one tile of a mosaic — the library partitions a population into tiles). Treated as settled unless vetoed.
 - Repo: `~/code/scala/tessera`, sibling to `alder` (consumer) and `gale` (unrelated at the dependency level)
 - Supersedes: `~/code/scala/resample4s/resample4s.md` (2026-07-23 design doc — broader, Frame4s-coupled conception; tessera is its data-agnostic core, extracted)
@@ -418,6 +418,14 @@ Laziness is what buys this. The v0.1 draft materialized every selection, which m
 
 Regenerating an already-validated accepted seed is deterministic, so the lazy plan remains total without storing the draw itself. Tests instrument candidate-generation counts and assert these bounds directly.
 
+**Primitive bounded draws.** An `Int` bound uses unsigned 64-bit rejection
+arithmetic without constructing `BigInt` operands. It is exactly equivalent to
+accepting a SplitMix64 word `w` when
+`unsigned(w) >= 2^64 mod bound` and returning `unsigned(w) mod bound`.
+`nextBigIntBounded` remains the separate arbitrary-width path. A differential
+test compares the optimized `Int` stream with the literal `BigInt` oracle on
+every supported platform.
+
 **Receipt work is explicit.** `Compiled.receipt(population)` streams a canonical *semantic* assignment encoding through the supplied `DigestAlgorithm`; `compile` never computes it implicitly. The encoding is independent of `Selection` backing:
 
 - a partition plan encodes its per-repeat ordinal-to-fold assignment vector in O(r·n);
@@ -490,6 +498,13 @@ This section closes the remaining catalogue-level ambiguity. “Random” below 
 **Holdout and Monte Carlo.**
 
 - Compute the named-role size `q` by §4.9. Fisher–Yates shuffle `[0, n)` once per unit; the first `q` ordinals form the named role and the remaining ordinals form the other role. Sort both selections before constructing the split.
+- An implementation may stop the descending Fisher–Yates loop after processing
+  position `q`: all later swaps are confined to `[0, q)` and therefore only
+  permute a prefix whose order `Selection` discards. A linear membership scan
+  may then emit both roles in increasing order. This shortcut must be
+  extensionally identical to the complete shuffle-and-sort algorithm for the
+  same seed; exhaustive small differential tests and the golden fixtures lock
+  that identity.
 - `Holdout` has one unit. `MonteCarlo(..., times)` has shape `(times, 1)`, requires `times ≥ 1`, and gives each unit its own child stream. Assessments may overlap and duplicate splits are legal.
 
 **Ordinary and grouped bootstrap.**
@@ -703,3 +718,4 @@ Resolutions from three independent review passes on 2026-07-25, beginning with P
 | **D25** | Exact `Optimum`/`Regret` diagnostics are computed only on the explicit bounded frontier `n ≤ 32 ∧ k^g ≤ 100000`; repeated grouped designs aggregate worst achieved quality instead of discarding diagnostics. The independent test oracle exhausts all canonical small label partitions. | “Where available” was previously implemented only as a few handpicked test fixtures, and repeated grouped-stratified plans retained only their repeat count. A bounded exact frontier makes availability honest and predictable without changing the asymptotic compilation contract. |
 | **D26** | The published law module exposes full label-recoding equivalence (owned labels, randomization key, fingerprints, and compiled assignments) and bootstrap order/multiplicity preservation through composition. | The catalogue tests covered these universal claims, but the consumer-facing bundle exposed only weaker assignment equivalence and single-plan bootstrap semantics. The release surface now matches laws 7 and 12 rather than relying on internal evidence. |
 | **D27** | Cross-language benchmarks compare one canonical public artifact, not similarly named constructors: every accepted timing cell first proves the same fixture and semantic contract; canonical sorting, complete materialization, and linear consumption occur inside the timer. Grouped-stratified quality accompanies time, and rsample's public-object lane is separated from index-kernel comparators. | Constructor-only races would reward laziness or eager allocation arbitrarily, Python-level checksum loops would measure the harness, redraw-conditioned and unconditional bootstrap are different distributions, and grouped heuristics can trade quality for speed. The parity protocol makes different algorithms and structures comparable without pretending they are identical. |
+| **D28** | `Int`-bounded rejection uses primitive unsigned 64-bit arithmetic, and shuffle-split stops once the named prefix set is fixed before emitting both sorted roles with one membership scan. Both kernels must remain exactly equivalent to the previous `BigInt` rejection and complete Fisher–Yates-plus-sort definitions for every seed. | JFR showed `BigInt` division/allocation and dual array sorting dominated Monte Carlo. The optimized kernels remove representation work without changing random words, accepted draws, child-stream state, role membership, golden fixtures, or the public O(n) per-unit contract. |
