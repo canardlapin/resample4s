@@ -73,6 +73,17 @@ maintainers need when changing code.
     Repeating a partitioning design drops the stronger proof, and Alder accepts
     only `ExactOnce`; otherwise repeated K-fold could unsoundly produce multiple
     OOF values per row while satisfying the old type.
+27. Grouped LPT allocation selects the least-loaded fold through a
+    seeded-priority min-heap. This preserves the normative tie-break while
+    satisfying the O(g log k) compilation contract; a production-path
+    comparison counter guards the bound.
+28. Bootstrap preflight and grouped-fold work observers are package-private
+    test capabilities. Default catalogue compilation captures only no-op
+    observers, so no mutable instrumentation enters the public design or plan
+    surface.
+29. `tessera-laws` publishes the consumer-relevant universal laws directly.
+    Tolerance-bearing redraw, OOB, draw-length, and sampled-rank checks remain
+    in the statistical test suite and are not promoted to laws.
 
 ## Evidence policy
 
@@ -89,4 +100,5 @@ The implementation-context type-discipline review is recorded under
 `docs/reviews/`. The distinct fresh-context independent review required by PLAN
 phase 4 remains open because the current orchestration policy does not permit
 delegation without explicit user authorization. It has not been self-approved
-or silently waived; no stable release tag may be created while it is open.
+or silently waived. Hosted CI also cannot be green until the repository has a
+remote. No stable release tag may be created while either gate is open.

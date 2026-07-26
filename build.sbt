@@ -82,7 +82,9 @@ lazy val designs = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(testSettings)
   .settings(compatibilitySettings)
   .settings(
-    name := "tessera-designs"
+    name := "tessera-designs",
+    Test / unmanagedSources +=
+      file("examples/NestedCrossValidation.scala")
   )
 
 lazy val designsJVM    = designs.jvm

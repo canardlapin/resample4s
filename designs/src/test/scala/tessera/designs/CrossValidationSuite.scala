@@ -1,6 +1,7 @@
 package tessera.designs
 
 import tessera.core.*
+import tessera.examples.NestedCrossValidation
 import scala.compiletime.testing.typeCheckErrors
 
 final class CrossValidationSuite extends munit.FunSuite:
@@ -163,7 +164,12 @@ def illegal(
       Some(BigInt(loads.max - loads.min))
     )
     val optimum = minimumGroupImbalance(groups, 3)
-    assert(loads.max - loads.min >= optimum)
+    val regret = loads.max - loads.min - optimum
+    assert(regret >= 0)
+    assert(
+      regret <= 0,
+      s"grouped size-imbalance regret $regret exceeded baseline 0"
+    )
   }
 
   test("grouped-stratified allocation uses the exact BigInt objective") {
@@ -188,7 +194,47 @@ def illegal(
     val optimum = minimumGroupedObjective(groups, strata, 2)
     val regret = observedObjective - optimum
     assert(regret >= 0)
-    assertEquals(regret, BigInt(0))
+    assert(
+      regret <= BigInt(0),
+      s"grouped-stratified objective regret $regret exceeded baseline 0"
+    )
+  }
+
+  test("grouped additive-regret baseline is one-sided") {
+    val sizes = Vector(8, 7, 6, 5, 4)
+    val rawCodes =
+      sizes.zipWithIndex.flatMap { (size, group) =>
+        Vector.fill(size)(100 + 17 * group)
+      }
+    val groups =
+      right(
+        Labels.dense(
+          IArray.unsafeFromArray(rawCodes.toArray),
+          rawCodes.length
+        )
+      )
+    val folds = 2
+    val compiled =
+      right(
+        KFold
+          .grouped(folds, groups)
+          .compile(
+            right(IndexSpace.of(groups.size)),
+            Seed.fromLong(31L)
+          )
+      )
+    val assigned = assignment(compiled.plan, 0, groups.size)
+    val loads =
+      Vector.range(0, folds).map(fold => assigned.count(_ == fold))
+    val optimum = minimumGroupImbalance(groups, folds)
+    val regret = loads.max - loads.min - optimum
+
+    assertEquals(optimum, 0)
+    assert(regret >= 0)
+    assert(
+      regret <= 4,
+      s"grouped size-imbalance regret $regret exceeded baseline 4"
+    )
   }
 
   test("label recoding leaves keys, streams, and partitions invariant") {
@@ -285,6 +331,7 @@ def illegal(
   }
 
   test("LOO and LOGO are exact and enforce degenerate boundaries") {
+    given DigestAlgorithm = DigestAlgorithm.fnv1a64
     val loo =
       right(
         LeaveOneOut().compile(
@@ -294,6 +341,22 @@ def illegal(
       ).plan
     assertExact(loo, 6)
     assertEquals(loo.shape, right(PlanShape.of(1, 6)))
+    val population = right(Summary.of("tessera/size", 6L))
+    val looReceipt =
+      right(
+        right(
+          LeaveOneOut().compile(
+            right(IndexSpace.of(6)),
+            Seed.fromLong(1L)
+          )
+        ).receipt(population)
+      )
+    assertEquals(
+      looReceipt
+        .withSeed(Seed.fromLong(999L))
+        .verify(LeaveOneOut(), right(IndexSpace.of(6)), population),
+      Right(())
+    )
     assertEquals(
       LeaveOneOut().compile(
         right(IndexSpace.of(1)),
@@ -369,6 +432,14 @@ def illegal(
         )
       }
     }
+    assertEquals(
+      NestedCrossValidation.verifyExclusion(
+        outer,
+        innerFolds = 2,
+        Seed.fromLong(202L)
+      ),
+      Right(true)
+    )
   }
 
   private def assertGroupAtomic(

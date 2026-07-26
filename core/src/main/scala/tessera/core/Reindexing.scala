@@ -183,6 +183,10 @@ final class Selection private[tessera] (
   def toIArray: IArray[Int] = backing.materialize
   def support: Selection = this
 
+  /** Explicitly forgets increasing order while retaining injectivity. */
+  def widen: Injection =
+    Injection.fromOwned(toIArray, codomain)
+
   def complement: Selection =
     backing match
       case value: SelectionBacking.ComplementOf => value.base

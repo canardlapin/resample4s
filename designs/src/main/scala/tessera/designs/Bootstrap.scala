@@ -64,6 +64,18 @@ object Bootstrap:
   ): GroupedBootstrap =
     new GroupedBootstrap(times, groups, policy)
 
+private[designs] trait BootstrapWorkObserver:
+  def candidate(unit: UnitKey): Unit
+  def preflightGroupId(unit: UnitKey): Unit
+  def emittedRow(unit: UnitKey): Unit
+
+private[designs] object BootstrapWorkObserver:
+  val noop: BootstrapWorkObserver =
+    new BootstrapWorkObserver:
+      def candidate(unit: UnitKey): Unit = ()
+      def preflightGroupId(unit: UnitKey): Unit = ()
+      def emittedRow(unit: UnitKey): Unit = ()
+
 private[designs] object BootstrapSupport:
   def policyValue(policy: OobPolicy): DescriptorValue =
     policy match
@@ -86,7 +98,8 @@ private[designs] object BootstrapSupport:
   def ordinary(
       context: BuildContext,
       times: Int,
-      policy: OobPolicy
+      policy: OobPolicy,
+      observer: BootstrapWorkObserver = BootstrapWorkObserver.noop
   ): Either[DesignError, GeneralPlanSpec[Split[Draw]]] =
     val n = context.space.size
     validatePolicy(times, policy).flatMap { maxAttempts =>
@@ -95,7 +108,8 @@ private[designs] object BootstrapSupport:
         times,
         policy,
         maxAttempts,
-        seed => ordinarySupportSize(n, seed) < n
+        observer,
+        (seed, _) => ordinarySupportSize(n, seed) < n
       ).flatMap { seeds =>
         for
           shape <- PlanShape.of(times, 1)
@@ -120,7 +134,8 @@ private[designs] object BootstrapSupport:
       context: BuildContext,
       times: Int,
       groups: Labels,
-      policy: OobPolicy
+      policy: OobPolicy,
+      observer: BootstrapWorkObserver = BootstrapWorkObserver.noop
   ): Either[DesignError, GeneralPlanSpec[Split[Draw]]] =
     val members = DesignSupport.labelMembers(groups)
     val groupCount = groups.cardinality
@@ -137,7 +152,14 @@ private[designs] object BootstrapSupport:
           times,
           policy,
           maxAttempts,
-          seed => groupedSupportSize(groupCount, seed) < groupCount
+          observer,
+          (seed, key) =>
+            groupedSupportSize(
+              groupCount,
+              seed,
+              key,
+              observer
+            ) < groupCount
         ).flatMap { seeds =>
           for
             shape <- PlanShape.of(times, 1)
@@ -155,7 +177,9 @@ private[designs] object BootstrapSupport:
                 groupedSplit(
                   groups,
                   members,
-                  seeds(key.repeat)
+                  key,
+                  seeds(key.repeat),
+                  observer
                 ),
               CanonicalAssignmentEncoder.drawSplit
             )
@@ -191,7 +215,8 @@ private[designs] object BootstrapSupport:
       times: Int,
       policy: OobPolicy,
       maxAttempts: Int,
-      acceptable: Seed => Boolean
+      observer: BootstrapWorkObserver,
+      acceptable: (Seed, UnitKey) => Boolean
   ): Either[DesignError, IArray[Seed]] =
     val seeds = new Array[Seed](times)
     var unit = 0
@@ -204,7 +229,8 @@ private[designs] object BootstrapSupport:
       policy match
         case OobPolicy.Allow => seeds(unit) = baseSeed
         case OobPolicy.Fail =>
-          if acceptable(baseSeed) then seeds(unit) = baseSeed
+          observer.candidate(key)
+          if acceptable(baseSeed, key) then seeds(unit) = baseSeed
           else error = Some(DesignError.EmptyOutOfBag(key, 1))
         case OobPolicy.Redraw(_) =>
           var attempt = 0
@@ -220,7 +246,8 @@ private[designs] object BootstrapSupport:
                       attempt - 1
                     )
                 )
-            if acceptable(candidate) then accepted = Some(candidate)
+            observer.candidate(key)
+            if acceptable(candidate, key) then accepted = Some(candidate)
             attempt += 1
           accepted match
             case Some(seed) => seeds(unit) = seed
@@ -261,13 +288,16 @@ private[designs] object BootstrapSupport:
 
   private def groupedSupportSize(
       groupCount: Int,
-      seed: Seed
+      seed: Seed,
+      unit: UnitKey,
+      observer: BootstrapWorkObserver
   ): Int =
     val seen = Array.fill(groupCount)(false)
     var rand = Rand.fromSeed(seed)
     var index = 0
     var count = 0
     while index < groupCount do
+      observer.preflightGroupId(unit)
       val (next, value) =
         rand.nextIntBoundedUnsafe(groupCount)
       rand = next
@@ -280,7 +310,9 @@ private[designs] object BootstrapSupport:
   private def groupedSplit(
       groups: Labels,
       members: IArray[IArray[Int]],
-      seed: Seed
+      unit: UnitKey,
+      seed: Seed,
+      observer: BootstrapWorkObserver
   ): Split[Draw] =
     val groupCount = groups.cardinality
     val drawnGroups = new Array[Int](groupCount)
@@ -304,6 +336,7 @@ private[designs] object BootstrapSupport:
       val rows = members(drawnGroups(index))
       var member = 0
       while member < rows.length do
+        observer.emittedRow(unit)
         values(output) = rows(member)
         output += 1
         member += 1

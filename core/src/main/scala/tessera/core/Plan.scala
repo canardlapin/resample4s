@@ -1,8 +1,11 @@
 package tessera.core
 
-final case class UnitKey(repeat: Int, fold: Int)
+final case class UnitKey(repeat: Int, fold: Int) derives CanEqual
 
-final case class PlanShape private (repeats: Int, foldsPerRepeat: Int):
+final case class PlanShape private (
+    repeats: Int,
+    foldsPerRepeat: Int
+) derives CanEqual:
   val unitCount: Int = repeats * foldsPerRepeat
 
 object PlanShape:

@@ -102,6 +102,69 @@ final class ResamplingSuite extends munit.FunSuite:
     )
   }
 
+  test("Redraw matches the exact n=2 conditioned and exhaustion oracle") {
+    val outcomes =
+      Vector.range(0, 2).flatMap(first =>
+        Vector.range(0, 2).map(second => Vector(first, second))
+      )
+    val acceptedOutcomes =
+      outcomes.filter(values => values.distinct.size < 2)
+    val rejectedOutcomes =
+      outcomes.filterNot(acceptedOutcomes.contains)
+    assertEquals(
+      acceptedOutcomes,
+      Vector(Vector(0, 0), Vector(1, 1))
+    )
+
+    val attempts = 3
+    val samples = 10000
+    val singleFailure =
+      rejectedOutcomes.size.toDouble / outcomes.size.toDouble
+    val expectedExhaustion = math.pow(singleFailure, attempts.toDouble)
+    val expectedConditionalZero =
+      acceptedOutcomes.count(_.head == 0).toDouble /
+        acceptedOutcomes.size.toDouble
+
+    val space = right(IndexSpace.of(2))
+    var exhausted = 0
+    var accepted = 0
+    var allZero = 0
+    var seed = 0
+    while seed < samples do
+      Bootstrap(1, OobPolicy.Redraw(attempts))
+        .compile(space, Seed.fromLong(seed.toLong)) match
+        case Left(DesignError.EmptyOutOfBag(UnitKey(0, 0), `attempts`)) =>
+          exhausted += 1
+        case Left(error) =>
+          fail(s"unexpected redraw failure: $error")
+        case Right(compiled) =>
+          val draw =
+            vector(right(compiled.plan.at(UnitKey(0, 0))).analysis)
+          assert(acceptedOutcomes.contains(draw))
+          accepted += 1
+          if draw.head == 0 then allZero += 1
+      seed += 1
+
+    val alpha = 0.001
+    val exhaustionTolerance =
+      math.sqrt(math.log(4.0 / alpha) / (2.0 * samples.toDouble))
+    val observedExhaustion = exhausted.toDouble / samples.toDouble
+    assert(
+      math.abs(observedExhaustion - expectedExhaustion) <=
+        exhaustionTolerance,
+      s"exhaustion=$observedExhaustion expected=$expectedExhaustion"
+    )
+
+    val conditionedTolerance =
+      math.sqrt(math.log(4.0 / alpha) / (2.0 * accepted.toDouble))
+    val observedConditionalZero = allZero.toDouble / accepted.toDouble
+    assert(
+      math.abs(observedConditionalZero - expectedConditionalZero) <=
+        conditionedTolerance,
+      s"conditioned=$observedConditionalZero expected=$expectedConditionalZero"
+    )
+  }
+
   test("ordinary OOB means match the exact finite-n expectation") {
     val samples = 2000
     val alpha = 0.001
@@ -198,11 +261,65 @@ final class ResamplingSuite extends munit.FunSuite:
         1.0 - 1.0 / groups.cardinality.toDouble,
         groups.cardinality.toDouble
       )
+    val alpha = 0.001
     val tolerance =
-      math.sqrt(math.log(2000.0) / (2.0 * samples.toDouble))
+      math.sqrt(math.log(2.0 / alpha) / (2.0 * samples.toDouble))
     assert(math.abs(rowFraction - expected) <= tolerance)
     assert(math.abs(groupFraction - expected) <= tolerance)
-    assert(math.abs(meanLength - groups.size.toDouble) <= 0.25)
+
+    val members = DesignSupport.labelMembers(groups)
+    val sizes =
+      Vector.tabulate(members.length)(group => members(group).length)
+    val lower = groups.cardinality.toDouble * sizes.min.toDouble
+    val upper = groups.cardinality.toDouble * sizes.max.toDouble
+    val observedNormalized = (meanLength - lower) / (upper - lower)
+    val expectedNormalized =
+      (groups.size.toDouble - lower) / (upper - lower)
+    assert(
+      math.abs(observedNormalized - expectedNormalized) <= tolerance,
+      s"normalized length=$observedNormalized expected=$expectedNormalized"
+    )
+
+    val equalGroups = labels(1, 1, 2, 2, 3, 3, 4, 4)
+    val equalPlan =
+      right(
+        Bootstrap
+          .grouped(samples, equalGroups, OobPolicy.Allow)
+          .compile(
+            right(IndexSpace.of(equalGroups.size)),
+            Seed.fromLong(901L)
+          )
+      ).plan
+    var equalRowFraction = 0.0
+    var equalGroupFraction = 0.0
+    assert(
+      equalPlan.iterator.forall { (_, split) =>
+        equalRowFraction +=
+          split.assessment.domain.toDouble / equalGroups.size.toDouble
+        val missingGroups =
+          Vector.range(0, equalGroups.cardinality).count { group =>
+            Vector
+              .range(0, split.assessment.domain)
+              .exists(index =>
+                right(
+                  equalGroups.at(right(split.assessment.at(index)))
+                ) == group
+              )
+          }
+        equalGroupFraction +=
+          missingGroups.toDouble / equalGroups.cardinality.toDouble
+        split.analysis.domain == equalGroups.size
+      }
+    )
+    equalRowFraction /= samples.toDouble
+    equalGroupFraction /= samples.toDouble
+    val equalExpected =
+      math.pow(
+        1.0 - 1.0 / equalGroups.cardinality.toDouble,
+        equalGroups.cardinality.toDouble
+      )
+    assert(math.abs(equalRowFraction - equalExpected) <= tolerance)
+    assert(math.abs(equalGroupFraction - equalExpected) <= tolerance)
   }
 
   test("grouped draw representability uses a widened boundary check") {
@@ -343,6 +460,20 @@ final class ResamplingSuite extends munit.FunSuite:
         )
         index += 1
     }
+
+    val repeatedIdentity =
+      right(
+        PermutationDesign(5).compile(
+          right(IndexSpace.of(1)),
+          Seed.fromLong(68L)
+        )
+      ).plan
+    val identities =
+      repeatedIdentity.materialize.map((_, permutation) =>
+        vector(permutation)
+      )
+    assertEquals(identities.length, 5)
+    assertEquals(identities.distinct, Vector(Vector(0)))
   }
 
   test("invalid phase-3 configurations return typed errors") {

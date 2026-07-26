@@ -21,6 +21,11 @@ Initial cross-platform release candidate.
   provider. Built-in FNV-1a-64 is explicitly a non-adversarial checksum.
 - Published law bundles, exhaustive oracles, calibrated statistical checks,
   cross-platform golden fixtures, and complexity guardrails.
+- Consumer law bundles for group atomicity, stratification, bootstrap
+  multiplicity/order/OOB semantics, permutation bijectivity and block
+  preservation, reconstruction, recoding equivalence, and assignment
+  perturbation.
+- A cross-platform-compiled nested-cross-validation composition example.
 - MiMa and TASTy-MiMa configuration with `0.1.0` recorded as the first
   compatibility baseline for subsequent releases.
 

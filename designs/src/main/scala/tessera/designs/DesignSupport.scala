@@ -55,6 +55,66 @@ private[designs] object ExactDefinitionRoute:
       ): DesignDefinition[Split[Selection], Coverage.Exact] =
         DesignDefinition.exactPartitions(descriptor, labels)(build)
 
+/** Min-heap of folds ordered by current load, then seeded priority.
+  *
+  * The initial heap is the priority permutation itself: with every load at
+  * zero, a parent always precedes its children by construction. A load only
+  * increases after the root is selected, so restoring the heap requires one
+  * downward pass.
+  */
+private[designs] final class FoldLoadQueue private (
+    private val heap: Array[Int],
+    private val priorityRank: Array[Int],
+    private val loads: Array[Int]
+):
+  private var observedComparisons = 0L
+
+  def takeAndAdd(size: Int): Int =
+    val fold = heap(0)
+    loads(fold) += size
+    siftDown()
+    fold
+
+  private[designs] def comparisonCount: Long = observedComparisons
+
+  private def precedes(left: Int, right: Int): Boolean =
+    observedComparisons += 1L
+    loads(left) < loads(right) ||
+      (loads(left) == loads(right) &&
+        priorityRank(left) < priorityRank(right))
+
+  private def siftDown(): Unit =
+    var parent = 0
+    var settled = false
+    while !settled do
+      val left = 2 * parent + 1
+      if left >= heap.length then settled = true
+      else
+        val right = left + 1
+        val preferredChild =
+          if right < heap.length && precedes(heap(right), heap(left)) then
+            right
+          else left
+        if precedes(heap(preferredChild), heap(parent)) then
+          val held = heap(parent)
+          heap(parent) = heap(preferredChild)
+          heap(preferredChild) = held
+          parent = preferredChild
+        else settled = true
+
+private[designs] object FoldLoadQueue:
+  def apply(priority: Vector[Int]): FoldLoadQueue =
+    val ranks = new Array[Int](priority.length)
+    var index = 0
+    while index < priority.length do
+      ranks(priority(index)) = index
+      index += 1
+    new FoldLoadQueue(
+      priority.toArray,
+      ranks,
+      Array.fill(priority.length)(0)
+    )
+
 private[designs] object DesignSupport:
   def descriptor(
       algorithm: String,
@@ -187,7 +247,8 @@ private[designs] object DesignSupport:
       context: BuildContext,
       folds: Int,
       groups: Labels,
-      repeat: Int
+      repeat: Int,
+      observeComparisons: Long => Unit = _ => ()
   ): Either[DesignError, FoldPartition] =
     if groups.cardinality < folds then
       Left(DesignError.TooFewGroups(groups.cardinality, folds))
@@ -195,17 +256,13 @@ private[designs] object DesignSupport:
       val members = labelMembers(groups)
       val groupOrder = seededLptOrder(context, members, repeat)
       val priority = foldPriority(context, folds, repeat)
-      val loads = Array.fill(folds)(0)
+      val loads = FoldLoadQueue(priority)
       val groupFold = Array.fill(groups.cardinality)(-1)
       groupOrder.foreach { group =>
-        val minimum = loads.min
-        var priorityIndex = 0
-        while loads(priority(priorityIndex)) != minimum do
-          priorityIndex += 1
-        val fold = priority(priorityIndex)
+        val fold = loads.takeAndAdd(members(group).length)
         groupFold(group) = fold
-        loads(fold) += members(group).length
       }
+      observeComparisons(loads.comparisonCount)
       assignmentsFromGroups(groups, groupFold, folds)
 
   def groupedStratifiedPartition(

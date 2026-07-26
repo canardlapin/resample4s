@@ -270,6 +270,10 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
         )
       )
     )
+    assertEquals(
+      wideReceipt.verify(design, space, summary(5))(using test128),
+      Right(())
+    )
   }
 
   test("semantic assignment encoding ignores selection backings") {
@@ -283,19 +287,35 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
         )
       )
 
-    def design(useBlock: Boolean): Design[Split[Selection], Coverage] =
+    val partition =
+      right(FoldPartition.fromAssignments(4, 2, ints(0, 1, 0, 1)))
+    val explicit = right(Selection.from(ints(1, 3), space))
+    val block = right(partition.block(1))
+    val complementBlock = right(partition.complementBlock(0))
+    val labels = right(Labels.dense(ints(0, 1, 0, 1), 4))
+    val labelClasses =
+      Selection.labelClasses(
+        labels,
+        IArray.unsafeFromArray(Array(false, true))
+      )
+    val complementOf =
+      right(Selection.from(ints(0, 2), space)).complement
+    val selections =
+      Vector(
+        explicit,
+        block,
+        complementBlock,
+        labelClasses,
+        complementOf
+      )
+
+    def design(
+        selection: Selection
+    ): Design[Split[Selection], Coverage] =
       new Design[Split[Selection], Coverage]:
         val definition =
           DesignDefinition.general(descriptor, None) { _ =>
-            val partition =
-              right(FoldPartition.fromAssignments(4, 2, ints(0, 1, 0, 1)))
-            val analysis =
-              if useBlock then right(partition.block(0))
-              else right(Selection.from(ints(0, 2), space))
-            val assessment =
-              if useBlock then right(partition.block(1))
-              else right(Selection.from(ints(1, 3), space))
-            val split = right(Split.of(analysis, assessment))
+            val split = right(Split.of(selection, selection.complement))
             for
               shape <- PlanShape.of(1, 1)
               cost <- PlanCost.of(4, 1, 4)
@@ -307,13 +327,48 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
             yield spec
           }
 
-    val explicit =
-      right(right(design(false).compile(space, Seed.fromLong(0L)))
-        .receipt(summary(4)))
-    val backed =
-      right(right(design(true).compile(space, Seed.fromLong(0L)))
-        .receipt(summary(4)))
-    assertEquals(explicit.assignment, backed.assignment)
+    val assignmentDigests =
+      selections.map(selection =>
+        right(
+          right(design(selection).compile(space, Seed.fromLong(0L)))
+            .receipt(summary(4))
+        ).assignment
+      )
+    assertEquals(assignmentDigests.distinct.size, 1)
+
+    val exactDescriptor =
+      right(
+        DesignDescriptor.of(
+          right(AlgorithmId.of("partition-backing-transparent/v1")),
+          IArray.unsafeFromArray(Array.empty[(String, DescriptorValue)])
+        )
+      )
+    def exactDesign(
+        value: FoldPartition
+    ): Design[Split[Selection], Coverage.ExactOnce] =
+      new Design[Split[Selection], Coverage.ExactOnce]:
+        val definition =
+          DesignDefinition.exactOncePartitions(
+            exactDescriptor,
+            None
+          ) { _ =>
+            ExactPartitionSpec.of(
+              IArray.unsafeFromArray(Array(value)),
+              PlanDiagnostics.empty
+            )
+          }
+
+    val explicitIdentity =
+      right(FoldPartition.fromAssignments(4, 4, ints(0, 1, 2, 3)))
+    val implicitIdentity = FoldPartition.singletonIdentity(4)
+    val exactDigests =
+      Vector(explicitIdentity, implicitIdentity).map(value =>
+        right(
+          right(exactDesign(value).compile(space, Seed.fromLong(0L)))
+            .receipt(summary(4))
+        ).assignment
+      )
+    assertEquals(exactDigests.distinct.size, 1)
   }
 
   test("canonical design bytes have a pre-hash compatibility fixture") {

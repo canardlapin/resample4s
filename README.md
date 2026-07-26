@@ -20,8 +20,9 @@ reason nested cross-validation cannot reach an outer assessment fold.
 ## Status
 
 This repository is currently `0.1.0-SNAPSHOT`. The public surface is not frozen
-until the Alder integration gate in `PLAN.md` passes. The implementation follows
-`PRD.md` v0.6; rolling-origin/time-series designs are explicitly deferred.
+until the fresh-context review and hosted-CI gates in `PLAN.md` pass. The Alder
+integration gate is complete. The implementation follows `PRD.md` v0.6;
+rolling-origin/time-series designs are explicitly deferred.
 
 ## Example
 
@@ -47,6 +48,9 @@ outer.iterator.foreach { (_, outerSplit) =>
 
 Production code should retain the `Either` error channel rather than use the
 compact `.toOption.get` presentation style above.
+
+The complete, cross-platform-compiled version is
+[`examples/NestedCrossValidation.scala`](examples/NestedCrossValidation.scala).
 
 ## Catalogue
 

@@ -13,12 +13,19 @@ final class PublishedLawsSuite extends munit.FunSuite:
       case Right(result) => result
       case Left(error)   => fail(s"expected Right, obtained $error")
 
+  private def labels(values: Int*): Labels =
+    right(Labels.dense(ints(values*), values.length))
+
   private def check(prop: org.scalacheck.Prop): Unit =
     val result = Test.check(Test.Parameters.default, prop)
     assert(
       result.passed,
       s"law failed: ${result.status}"
     )
+
+  private def checkFails(prop: org.scalacheck.Prop): Unit =
+    val result = Test.check(Test.Parameters.default, prop)
+    assert(!result.passed, "expected the deliberately broken fixture to fail")
 
   test("published reindexing laws pass on representative values") {
     val space = right(IndexSpace.of(6))
@@ -57,6 +64,128 @@ final class PublishedLawsSuite extends munit.FunSuite:
     check(PlanLaws.exactCoverage(plan, 12))
     check(PlanLaws.disjointness(plan))
     check(PlanLaws.reconstruction(plan, 12))
+  }
+
+  test("published grouping and stratification laws detect role violations") {
+    val groups = labels(1, 1, 2, 2, 3, 3, 4, 4)
+    val strata = labels(1, 2, 1, 2, 1, 2, 1, 2)
+    val space = right(IndexSpace.of(groups.size))
+    val grouped =
+      right(
+        KFold
+          .grouped(4, groups)
+          .compile(space, Seed.fromLong(19L))
+      ).plan
+    val stratified =
+      right(
+        KFold
+          .stratified(4, strata)
+          .compile(space, Seed.fromLong(20L))
+      ).plan
+    check(PlanLaws.groupAtomicity(grouped, groups))
+    check(PlanLaws.stratificationBalance(stratified, strata))
+
+    val analysis = right(Selection.from(ints(0, 1), space))
+    val assessment = right(Selection.from(ints(2, 3, 4, 5, 6, 7), space))
+    val broken =
+      Plan.fromGenerator[Split[Selection], Coverage](
+        right(PlanShape.of(1, 1)),
+        _ => Split.unsafe(analysis, assessment)
+      )
+    val crossingGroups = labels(1, 2, 1, 2, 3, 3, 4, 4)
+    checkFails(PlanLaws.groupAtomicity(broken, crossingGroups))
+  }
+
+  test("published bootstrap and permutation laws pass catalogue values") {
+    val n = 8
+    val space = right(IndexSpace.of(n))
+    val bootstrap =
+      right(
+        Bootstrap(20, OobPolicy.Allow)
+          .compile(space, Seed.fromLong(71L))
+      ).plan
+    bootstrap.iterator.foreach { (_, split) =>
+      check(ResamplingLaws.bootstrapSplit(split, n, n))
+    }
+
+    val free =
+      right(
+        PermutationDesign(20).compile(space, Seed.fromLong(72L))
+      ).plan
+    free.iterator.foreach { (_, permutation) =>
+      check(PermutationLaws.bijection(permutation))
+    }
+
+    val blocks = labels(1, 1, 2, 2, 2, 3, 3, 3)
+    val within =
+      right(
+        PermutationDesign
+          .within(blocks, 20)
+          .compile(space, Seed.fromLong(73L))
+      ).plan
+    within.iterator.foreach { (_, permutation) =>
+      check(PermutationLaws.withinBlocks(permutation, blocks))
+    }
+  }
+
+  test("published metamorphic and perturbation laws observe assignments") {
+    given DigestAlgorithm = DigestAlgorithm.fnv1a64
+
+    def intDesign(offset: Int): Design[Int, Coverage] =
+      val descriptor =
+        right(
+          DesignDescriptor.of(
+            right(AlgorithmId.of("law-int-design/v1")),
+            IArray.unsafeFromArray(
+              Array(
+                "offset" -> DescriptorValue.int(offset)
+              )
+            )
+          )
+        )
+      new Design[Int, Coverage]:
+        val definition =
+          DesignDefinition.general(descriptor, None) { _ =>
+            for
+              shape <- PlanShape.of(1, 2)
+              cost <- PlanCost.of(0, 1, 1)
+              spec <- GeneralPlanSpec.of(
+                shape,
+                PlanDiagnostics.empty,
+                cost
+              )(
+                key => offset + key.fold,
+                new CanonicalAssignmentEncoder[Int]:
+                  def encode(
+                      value: Int,
+                      out: CanonicalWriter
+                  ): Either[DigestError, Unit] =
+                    out.int(value)
+                    Right(())
+              )
+            yield spec
+          }
+
+    val space = right(IndexSpace.of(4))
+    val seed = Seed.fromLong(9L)
+    check(
+      DesignLaws.equivalentCompilations(
+        intDesign(4),
+        intDesign(4),
+        space,
+        seed
+      )(_ == _)
+    )
+    check(
+      DesignLaws.assignmentPerturbation(
+        intDesign(4),
+        intDesign(5),
+        space,
+        seed,
+        right(Summary.of("tessera/size", 4L)),
+        UnitKey(0, 0)
+      )(_ != _)
+    )
   }
 
   test("design conformance laws detect broken generators and costs") {

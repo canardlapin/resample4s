@@ -11,6 +11,62 @@ final class CostGuardrailSuite extends munit.FunSuite:
       case Right(result) => result
       case Left(error)   => fail(s"expected Right, obtained $error")
 
+  private final class CountingBootstrapObserver
+      extends BootstrapWorkObserver:
+    var candidates = 0L
+    var preflightGroupIds = 0L
+    var emittedRows = 0L
+
+    def candidate(unit: UnitKey): Unit =
+      candidates += 1L
+
+    def preflightGroupId(unit: UnitKey): Unit =
+      preflightGroupIds += 1L
+
+    def emittedRow(unit: UnitKey): Unit =
+      emittedRows += 1L
+
+  private def observedOrdinary(
+      times: Int,
+      policy: OobPolicy,
+      observer: BootstrapWorkObserver
+  ): Design[Split[Draw], Coverage] =
+    new Design[Split[Draw], Coverage]:
+      val definition =
+        DesignDefinition.general(
+          DesignSupport.descriptor(
+            "observed-bootstrap/v1",
+            "times" -> DescriptorValue.int(times)
+          ),
+          None
+        )(context =>
+          BootstrapSupport.ordinary(context, times, policy, observer)
+        )
+
+  private def observedGrouped(
+      times: Int,
+      groups: Labels,
+      policy: OobPolicy,
+      observer: BootstrapWorkObserver
+  ): Design[Split[Draw], Coverage] =
+    new Design[Split[Draw], Coverage]:
+      val definition =
+        DesignDefinition.general(
+          DesignSupport.descriptor(
+            "observed-grouped-bootstrap/v1",
+            "times" -> DescriptorValue.int(times)
+          ),
+          Some(groups)
+        )(context =>
+          BootstrapSupport.grouped(
+            context,
+            times,
+            groups,
+            policy,
+            observer
+          )
+        )
+
   test("million-unit keys and an unstarted iterator retain constant state") {
     val shape = right(PlanShape.of(1000, 1000))
     var evaluations = 0
@@ -101,6 +157,143 @@ final class CostGuardrailSuite extends munit.FunSuite:
           compiled.cost.workPerUnitUpperBound
       )
     }
+  }
+
+  test("bootstrap preflight counts candidates and never expands group rows") {
+    val ordinaryTimes = 20
+    val ordinarySpace = right(IndexSpace.of(12))
+    val ordinarySeed =
+      Vector
+        .range(0, 100)
+        .map(value => Seed.fromLong(value.toLong))
+        .find(seed =>
+          Bootstrap(ordinaryTimes, OobPolicy.Fail)
+            .compile(ordinarySpace, seed)
+            .isRight
+        )
+        .getOrElse(fail("expected a successful fixed-seed Fail fixture"))
+    val ordinaryObserver = new CountingBootstrapObserver()
+    right(
+      observedOrdinary(
+        ordinaryTimes,
+        OobPolicy.Fail,
+        ordinaryObserver
+      ).compile(ordinarySpace, ordinarySeed)
+    )
+    assertEquals(ordinaryObserver.candidates, ordinaryTimes.toLong)
+
+    val redrawObserver = new CountingBootstrapObserver()
+    val attempts = 5
+    assertEquals(
+      observedOrdinary(
+        times = 1,
+        OobPolicy.Redraw(attempts),
+        redrawObserver
+      ).compile(right(IndexSpace.of(1)), Seed.fromLong(0L)),
+      Left(DesignError.EmptyOutOfBag(UnitKey(0, 0), attempts))
+    )
+    assertEquals(redrawObserver.candidates, attempts.toLong)
+
+    val groups =
+      right(Labels.dense(ints(1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 8, 8), 12))
+    val groupedTimes = 10
+    val groupedSpace = right(IndexSpace.of(groups.size))
+    val groupedSeed =
+      Vector
+        .range(0, 100)
+        .map(value => Seed.fromLong(value.toLong))
+        .find(seed =>
+          Bootstrap
+            .grouped(groupedTimes, groups, OobPolicy.Fail)
+            .compile(groupedSpace, seed)
+            .isRight
+        )
+        .getOrElse(
+          fail("expected a successful fixed-seed grouped Fail fixture")
+        )
+    val groupedObserver = new CountingBootstrapObserver()
+    val grouped =
+      right(
+        observedGrouped(
+          groupedTimes,
+          groups,
+          OobPolicy.Fail,
+          groupedObserver
+        ).compile(groupedSpace, groupedSeed)
+      )
+    assertEquals(groupedObserver.candidates, groupedTimes.toLong)
+    assertEquals(
+      groupedObserver.preflightGroupIds,
+      groupedTimes.toLong * groups.cardinality.toLong
+    )
+    assertEquals(groupedObserver.emittedRows, 0L)
+
+    val first = right(grouped.plan.at(UnitKey(0, 0)))
+    assertEquals(
+      groupedObserver.emittedRows,
+      first.analysis.domain.toLong
+    )
+  }
+
+  test("grouped fold allocation uses logarithmic seeded-priority updates") {
+    val priority = Vector(3, 1, 6, 0, 7, 2, 5, 4)
+    val sizes = Vector(8, 7, 6, 5, 5, 4, 3, 2, 1)
+    val queue = FoldLoadQueue(priority)
+    val referenceLoads = Array.fill(priority.length)(0)
+    val expected =
+      sizes.map { size =>
+        val minimum = referenceLoads.min
+        val fold = priority.find(referenceLoads(_) == minimum).getOrElse(
+          fail("the non-empty priority permutation must select a fold")
+        )
+        referenceLoads(fold) += size
+        fold
+      }
+    val observed = sizes.map(queue.takeAndAdd)
+    assertEquals(observed, expected)
+
+    val foldCount = 1024
+    val groupCount = 10000
+    val wide = FoldLoadQueue(Vector.range(0, foldCount).reverse)
+    var group = 0
+    while group < groupCount do
+      wide.takeAndAdd(group % 17 + 1)
+      group += 1
+    val levels = 10L
+    assert(
+      wide.comparisonCount <= 2L * groupCount.toLong * levels,
+      s"${wide.comparisonCount} heap comparisons exceeded the logarithmic bound"
+    )
+
+    val groupCodes = IArray.unsafeFromArray(Array.tabulate(groupCount)(identity))
+    val groups = right(Labels.dense(groupCodes, groupCount))
+    val space = right(IndexSpace.of(groupCount))
+    val context =
+      new BuildContext(
+        space,
+        Vector(groups),
+        Seed.fromLong(101L),
+        DesignKey.fromLong(0x243f6a8885a308d3L)
+      )
+    var productionComparisons: Option[Long] = None
+    right(
+      DesignSupport.groupedPartition(
+        context,
+        foldCount,
+        groups,
+        repeat = 0,
+        observeComparisons =
+          comparisons => productionComparisons = Some(comparisons)
+      )
+    )
+    val productionObserved =
+      productionComparisons.getOrElse(
+        fail("the production grouped allocator did not report its work")
+      )
+    assert(
+      productionObserved <= 2L * groupCount.toLong * levels,
+      s"$productionObserved production comparisons exceeded the logarithmic bound"
+    )
   }
 
   test("receipt traversal is explicit, streaming, and not memoized") {

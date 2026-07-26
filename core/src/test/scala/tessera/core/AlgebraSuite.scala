@@ -65,6 +65,14 @@ final class AlgebraSuite extends munit.ScalaCheckSuite:
     val draw = right(Draw.from(ints(1, 1, 0), right(IndexSpace.of(3))))
     val redrawn: Draw = right(selection.after(draw))
     assertEquals(vector(redrawn), Vector(2, 2, 0))
+
+    val widenedSelection: Injection = selection.widen
+    val widenedInjection: Draw = widenedSelection.widen
+    assertEquals(vector(widenedSelection), vector(selection))
+    assertEquals(vector(widenedInjection), vector(selection))
+    assertEquals(widenedSelection.codomain, selection.codomain)
+    assertEquals(widenedInjection.codomain, selection.codomain)
+
     assertEquals(
       selection.after(right(Selection.from(ints(0), right(IndexSpace.of(4))))),
       Left(DomainMismatch(3, 4))

@@ -41,10 +41,31 @@ expose mutable array ownership.
 ## Evidence
 
 The strict build uses `-Werror`, `-Wunused:all`, explicit nulls, and strict
-equality. `sbt -batch testAll` passes 32 core, 32 designs, and 5 laws tests on
-each of JVM, Scala.js, and Scala Native. The suite includes capability-negative
-compilation, aliasing, algebraic laws, exact oracles, statistical calibration,
-golden compatibility locks, and cost guardrails.
+equality. `sbt -batch testAll` passes 32 core, 41 designs, and 8 laws tests on
+each of JVM, Scala.js, and Scala Native: 243 tests in total. The suite includes
+capability-negative compilation, aliasing, algebraic laws, exact oracles,
+statistical calibration, golden compatibility locks, and cost guardrails.
+
+## Post-audit recheck — 2026-07-26
+
+Verdict: clean after two precision fixes.
+
+- `Selection.widen` now completes the explicit typed widening path promised by
+  the reindexing lattice; it returns `Injection`, never a loose supertype.
+- `UnitKey` and `PlanShape`, the two intentionally structural case classes,
+  derive `CanEqual` explicitly under strict equality.
+- A temporary `-1` fallback in a published bootstrap law was replaced with
+  total `Either` matching.
+- `BootstrapWorkObserver` and `FoldLoadQueue` remain `private[designs]`.
+  Observer mutation exists only in tests; catalogue designs use the no-op
+  observer, and heap mutation is confined to eager compilation.
+- No cast, unchecked variance, warning suppression, stringly ADT, mutable public
+  array, or weakened coverage type was introduced.
+
+Should-have-changed audit: every new law API has an executing catalogue fixture,
+the production grouped allocator is measured rather than only its heap helper,
+all selection and partition backings reach the receipt-encoding test, and no
+stale match over a changed public ADT was found.
 
 ## Independent-review gate
 
