@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: JVM
+            tasks: coreJVM/test designsJVM/test lawsJVM/test
+          - platform: Scala.js
+            tasks: coreJS/test designsJS/test lawsJS/test
+          - platform: Scala Native
+            tasks: coreNative/test designsNative/test lawsNative/test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Install Scala Native toolchain
+        if: matrix.platform == 'Scala Native'
+        run: sudo apt-get update && sudo apt-get install -y clang lld
+      - name: Compile and test
+        run: sbt -batch ${{ matrix.tasks }}
+
+  compatibility:
+    name: compatibility baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Check MiMa and TASTy-MiMa
+        run: sbt -batch compatibilityAll
