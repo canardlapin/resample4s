@@ -62,7 +62,7 @@ permutation behavior.
 | Formatting / rewrites | Missing | No Scalafmt/Scalafix gate. This is an optional tooling gap, not a PLAN requirement. |
 | Binary/source compatibility | Strong | MiMa/TASTy-MiMa execute for every artifact; the previous set is intentionally empty until the first baseline. |
 | Coverage/mutation signal | Missing | No line-coverage or mutation framework. Deliberately broken fixtures prove specific laws bite but are not a coverage metric. |
-| Performance evidence | Present but incomplete | Deterministic complexity/work frontiers execute; no JMH or allocation-profiler receipt is claimed. |
+| Performance evidence | Strong for split artifacts | Deterministic complexity/work frontiers execute, and semantic-parity standard benchmarks preserve 120 raw Scala/Python/R rows plus 24 validated aggregates. No allocation-profiler receipt is claimed. |
 | Documentation/release evidence | Present but incomplete | Contracts and local artifacts are verified; hosted CI, final version freeze, and pushed tag remain open. |
 
 Cats, Cats Effect, Discipline, `sbt-typelevel`, coverage, mutation, and

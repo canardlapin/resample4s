@@ -1,0 +1,16 @@
+Package: tesseraBenchmarks
+Type: Project
+Title: Tessera Cross-Language Benchmark Environment
+Version: 0.1.0
+Authors@R: person("Tessera", "Contributors", role = c("aut", "cre"),
+    email = "noreply@example.com")
+Description: Reproducible R dependencies for Tessera semantic-parity
+    resampling benchmarks.
+License: Apache License (>= 2)
+Encoding: UTF-8
+Depends:
+    R (>= 4.1)
+Imports:
+    bench (= 1.1.4),
+    rsample (= 1.3.2),
+    splitTools (= 1.0.1)

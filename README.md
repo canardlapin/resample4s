@@ -21,7 +21,7 @@ reason nested cross-validation cannot reach an outer assessment fold.
 
 This repository is currently `0.1.0-SNAPSHOT`. The fresh-context review and
 Alder integration gates are complete; the public surface is not frozen until
-the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.7;
+the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.8;
 rolling-origin/time-series designs are explicitly deferred.
 
 ## Example
@@ -101,6 +101,8 @@ outside Tessera.
 - `tessera-core`: algebra, RNG, design SPI, plans, and receipts.
 - `tessera-designs`: built-in design catalogue.
 - `tessera-laws`: published ScalaCheck law bundles.
+- `tessera-benchmarks`: non-published JVM harness with locked scikit-learn,
+  splitTools, and rsample comparators.
 
 Run the full local gate with:
 
@@ -108,7 +110,15 @@ Run the full local gate with:
 sbt testAll
 sbt compatibilityAll
 sbt publishLocalAll
+sbt benchmarkCheck
 ```
 
 The build uses Scala 3.3.8 with fatal warnings, strict equality, explicit nulls,
 and no runtime library dependencies.
+
+The cross-language benchmark compares complete canonical split artifacts rather
+than constructor names. Every timing cell first proves the same fixture and
+semantic contract. The checked-in standard run and its limits are recorded in
+[`benchmarks/results/2026-07-26-standard/report.md`](benchmarks/results/2026-07-26-standard/report.md);
+the reproducible protocol is in
+[`benchmarks/README.md`](benchmarks/README.md).

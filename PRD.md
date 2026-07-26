@@ -2,7 +2,7 @@
 
 **A pure, typed algebra of finite reindexings, partitions, and reproducible randomized designs.**
 
-- Status: proposal v0.7 (review-remediated release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, and the phase-4 fresh-context assurance review (see §12 decision log)
+- Status: proposal v0.8 (benchmarked release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, and semantic-parity Python/R benchmarks (see §12 decision log)
 - Working name: `tessera` (a tessera is one tile of a mosaic — the library partitions a population into tiles). Treated as settled unless vetoed.
 - Repo: `~/code/scala/tessera`, sibling to `alder` (consumer) and `gale` (unrelated at the dependency level)
 - Supersedes: `~/code/scala/resample4s/resample4s.md` (2026-07-23 design doc — broader, Frame4s-coupled conception; tessera is its data-agnostic core, extracted)
@@ -535,7 +535,7 @@ Nested CV requires **no special design**: the consumer compiles an inner design 
 
 ## 6. Verification (`tessera-laws` + test suites)
 
-Published module (ScalaCheck at compile scope, like alder-laws) so consumers can run the same bundles over their adapters. The v0.1 draft filed everything under "laws"; two of those statements were not laws, and golden fixtures were doing work they cannot do. Four distinct kinds of evidence, kept apart:
+Published module (ScalaCheck at compile scope, like alder-laws) so consumers can run the same bundles over their adapters. The v0.1 draft filed everything under "laws"; two of those statements were not laws, and golden fixtures were doing work they cannot do. Five distinct kinds of evidence, kept apart:
 
 ### 6.1 Laws — deterministic universal statements
 
@@ -576,6 +576,36 @@ Explicitly **not** laws, run with fixed seed sets and stated confidence bounds:
 
 Allocation, unit-count, candidate-generation, and canonical-encoding work assertions against §4.8 — e.g. `LeaveOneOut(n = 100_000)` compiles within a bounded allocation budget and never materializes n² indices; obtaining `keys` for a million-unit shape remains O(1) allocation; exhaustive delete-*d* retains no complement-sized analysis arrays; grouped bootstrap work tracks `g + L`, not an assumed `n`; `Redraw(a)` never evaluates more than `a` candidates per unit; receipt construction retains no assignment vectors. `materialized` is separately asserted to perform one eager traversal and to leave the source plan observationally unchanged. Correctness gates that pass while the library quietly becomes unusable at scale are not gates.
 
+### 6.5 Cross-language benchmark evidence
+
+Cross-language timing is accepted only after semantic parity is established.
+The benchmark task is to generate, canonicalize, materialize, and consume every
+analysis and assessment ordinal through each library's public API. Model
+fitting, scoring, process startup, dependency loading, and feature-data copying
+are outside the timer.
+
+Each manifest case owns a deterministic input fixture and contract id. All
+runners must agree on the fixture checksum, unit count, analysis count, and,
+except for random bootstrap OOB size, assessment count. They independently
+prove exact coverage, role disjointness, group atomicity, stratum diagnostics,
+requested Monte Carlo size, or draw/OOB semantics before a timing row is
+accepted. Different RNGs and allocation algorithms may produce different legal
+assignments.
+
+Non-bootstrap comparator roles are sorted inside the timed region so the
+observable artifact matches Tessera's increasing `Selection`. Bootstrap retains
+draw order and uses `OobPolicy.Allow`, which matches an unconditional n-of-n
+bootstrap rather than Tessera's redraw-conditioned default. Grouped-stratified
+timings are reported with the common integer objective `J`; a faster but much
+worse allocation is not represented as an unqualified win.
+
+The primary low-level comparators are scikit-learn and splitTools. rsample is a
+separate public-workflow comparator whose timing necessarily includes its
+data-frame split objects. Raw rows, validated aggregates, environment versions,
+and interpretation boundaries are stored together. Ratios are machine-specific
+directional evidence, not laws, complexity guarantees, or universal speed
+claims.
+
 ## 7. Module and dependency map
 
 ```
@@ -586,6 +616,7 @@ tessera-core      IndexSpace, Reindexing lattice (Draw/Injection/Selection/Permu
                   DesignError
 tessera-designs   the catalogue of §5 (depends on core)
 tessera-laws      law bundles + generators + oracles (depends on core+designs; scalacheck at compile scope)
+tessera-benchmarks non-published JVM harness + Python/R comparators (test/evidence only)
 ```
 
 `Design` and `Labels` live in **core**, not designs — the protocol is a core type that both the catalogue and consumers' own designs implement. (The v0.1 plan had them arriving with the KFold family, which made the phase graph circular; see §12 D8.)
@@ -602,6 +633,8 @@ Match the alder/gale house style exactly:
 - Tests: munit + munit-scalacheck; laws via the same pattern as alder-laws (discipline optional — plain ScalaCheck bundles suffice without cats).
 - Public frozen types are final classes with accessors (§4.3), which is what makes a MiMa-frozen surface extensible later.
 - Post-v0.1: MiMa + TASTy-MiMa baselines once the surface freezes; golden-fixture cross-platform CI job from day one.
+- The non-published benchmark harness is JVM-only. Python and R environments
+  are separately locked; their dependencies never enter Tessera artifacts.
 
 ## 9. Integration contract with alder (informative, not normative for tessera)
 
@@ -669,3 +702,4 @@ Resolutions from three independent review passes on 2026-07-25, beginning with P
 | **D24** | An open digest provider creates an independent incremental `DigestAccumulator` per invocation. Canonical receipt bytes are pushed synchronously as they are generated; the framework never buffers one general-plan unit before hashing it. | The phase-4 fresh review found that the iterator-shaped provider API was open but the writer accumulated Θ(unit size) chunks, contradicting the O(1)-state receipt contract. A stateful per-invocation capability keeps providers open while making streaming observable and testable. |
 | **D25** | Exact `Optimum`/`Regret` diagnostics are computed only on the explicit bounded frontier `n ≤ 32 ∧ k^g ≤ 100000`; repeated grouped designs aggregate worst achieved quality instead of discarding diagnostics. The independent test oracle exhausts all canonical small label partitions. | “Where available” was previously implemented only as a few handpicked test fixtures, and repeated grouped-stratified plans retained only their repeat count. A bounded exact frontier makes availability honest and predictable without changing the asymptotic compilation contract. |
 | **D26** | The published law module exposes full label-recoding equivalence (owned labels, randomization key, fingerprints, and compiled assignments) and bootstrap order/multiplicity preservation through composition. | The catalogue tests covered these universal claims, but the consumer-facing bundle exposed only weaker assignment equivalence and single-plan bootstrap semantics. The release surface now matches laws 7 and 12 rather than relying on internal evidence. |
+| **D27** | Cross-language benchmarks compare one canonical public artifact, not similarly named constructors: every accepted timing cell first proves the same fixture and semantic contract; canonical sorting, complete materialization, and linear consumption occur inside the timer. Grouped-stratified quality accompanies time, and rsample's public-object lane is separated from index-kernel comparators. | Constructor-only races would reward laziness or eager allocation arbitrarily, Python-level checksum loops would measure the harness, redraw-conditioned and unconditional bootstrap are different distributions, and grouped heuristics can trade quality for speed. The parity protocol makes different algorithms and structures comparable without pretending they are identical. |

@@ -1,8 +1,8 @@
 # Tessera — Execution Plan
 
-Companion to `PRD.md` (v0.7). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
+Companion to `PRD.md` (v0.8). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
 
-Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, and the phase-4 fresh-context assurance review; the latter made receipt digesting truly incremental, completed bounded optimum/regret diagnostics and oracle lattices, and closed the published-law surface (PRD §12 D24–D26).
+Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, the phase-4 fresh-context assurance review, and the semantic-parity Python/R benchmark tranche (PRD §12 D24–D27).
 
 ## Phase 0 — Bootstrap (small)
 
@@ -59,9 +59,17 @@ Independent of phase 2 once phase 1 lands (both need only `Design`/`Labels`/`Pla
 - Scaladoc pass on the public surface, including the honest-limits statements: digest is not tamper-evident, redraw biases the bootstrap distribution at small `n`, grouped-stratified balance is best-effort.
 - `docs/design.md` capturing decisions D-style, seeded from PRD §12.
 - CI: GitHub Actions matrix (JVM/JS/Native × law suite + golden fixtures + statistical suite + cost guardrails).
+- **Semantic-parity benchmarks:** a non-published JVM runner plus locked
+  scikit-learn, splitTools, and rsample environments. Time only complete
+  canonical analysis/assessment artifacts after the same fixture and contract
+  pass; report grouped-stratified quality beside time. Keep rsample's public
+  object workflow distinct from index-kernel comparisons (PRD §6.5).
 - **Independent review pass:** fresh-context subagent review of the whole public surface against PRD principles P1–P7 (plus `/scala-type-discipline` on the diff); fix findings. Do not self-approve.
 
-**Gate:** CI green including cost guardrails; review findings resolved or explicitly waived in `docs/design.md`.
+**Gate:** CI green including cost guardrails and benchmark protocol tests;
+review findings resolved or explicitly waived in `docs/design.md`; the smoke
+and standard benchmark profiles produce validated raw rows, aggregates,
+environment manifests, and interpretation-bounded reports.
 
 ## Phase 5 — Alder integration spike (gated on alder-data existing)
 

@@ -1,0 +1,63 @@
+name: benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Benchmark profile
+        required: true
+        default: standard
+        type: choice
+        options:
+          - smoke
+          - standard
+          - stress
+  schedule:
+    - cron: "23 4 * * 1"
+
+jobs:
+  cross-language:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PROFILE: ${{ inputs.profile || 'standard' }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.5.1"
+          use-public-rspm: true
+
+      - name: Restore Python environment
+        run: uv sync --project benchmarks/python --frozen
+      - name: Restore R environment
+        run: |
+          Rscript -e 'install.packages("renv", repos = "https://cloud.r-project.org")'
+          R_PROFILE_USER=/dev/null Rscript -e 'renv::restore(project = "benchmarks/r", prompt = FALSE)'
+
+      - name: Verify benchmark contracts
+        run: |
+          sbt -batch benchmarks/test
+          cd benchmarks/python
+          uv run --frozen python -m unittest -v test_protocol.py
+          cd ../r
+          R_PROFILE_USER=/dev/null Rscript test_protocol.R
+
+      - name: Run comparison
+        run: |
+          ./benchmarks/run.sh "$PROFILE" 2 5 "$RUNNER_TEMP/tessera-benchmark"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tessera-benchmark-${{ env.PROFILE }}
+          path: ${{ runner.temp }}/tessera-benchmark

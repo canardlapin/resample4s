@@ -13,7 +13,7 @@ jobs:
       matrix:
         include:
           - platform: JVM
-            tasks: coreJVM/test designsJVM/test lawsJVM/test
+            tasks: coreJVM/test designsJVM/test lawsJVM/test benchmarks/test
           - platform: Scala.js
             tasks: coreJS/test designsJS/test lawsJS/test
           - platform: Scala Native

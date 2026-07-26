@@ -31,6 +31,10 @@ Initial cross-platform release candidate.
 - A cross-platform-compiled nested-cross-validation composition example.
 - MiMa and TASTy-MiMa configuration with `0.1.0` recorded as the first
   compatibility baseline for subsequent releases.
+- A semantic-parity benchmark harness comparing complete canonical split
+  artifacts with scikit-learn, splitTools, and rsample. Locked environments,
+  contract tests, raw evidence, allocation-quality diagnostics, and
+  interpretation-bounded reports are included.
 
 ### Integration
 

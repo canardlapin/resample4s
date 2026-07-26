@@ -1,0 +1,14 @@
+Machine: arm64
+Operating system: Darwin 23.3.0 Darwin Kernel Version 23.3.0: Wed Dec 20 21:31:10 PST 2023; root:xnu-10002.81.5~7/RELEASE_ARM64_T6031
+Shell Java: openjdk version "22" 2024-03-19
+sbt benchmark Java: 25.0.1
+Tessera: 0.1.0-SNAPSHOT
+Python: 3.13.11
+scikit-learn: 1.7.1
+R: 4.5.1
+rsample: 1.3.2
+splitTools: 1.0.1
+bench clock: 1.1.4
+Profile: smoke
+Warmups per cell: 1
+Measurements per cell: 5

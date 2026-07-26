@@ -65,6 +65,11 @@ green aggregate count is not treated as proof unless the named gate is covered.
 - The user-authorized fresh-context review of `3dc2d77` is complete. Its
   receipt, oracle/diagnostic, and public-law findings were fixed rather than
   waived; the review and resolutions are recorded under `docs/reviews/`.
+- The semantic-parity benchmark harness validates deterministic shared
+  fixtures and family-specific public contracts before timing. Its smoke
+  protocol covers 24 supported library/case cells; the standard profile
+  preserves 120 raw rows and 24 comparable aggregates with grouped-stratified
+  quality reported beside runtime.
 - Open: hosted CI cannot run until a Git remote exists. Local evidence is not
   mislabeled as hosted-CI evidence.
 

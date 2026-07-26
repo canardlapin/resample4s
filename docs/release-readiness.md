@@ -25,6 +25,12 @@ Last verified: 2026-07-26
   `docs/reviews/fresh-context-2026-07-26.md`.
 - Alder commit `648ac3b` passed its 114-test module set on each platform and
   retains the complete Tessera receipt in cross-fit lineage.
+- The locked cross-language benchmark protocol passed 7 Tessera, 6
+  scikit-learn, 7 rsample, and 4 splitTools smoke contract cells. The standard
+  profile produced 120 accepted raw measurements and 24 validated aggregates
+  over identical fixtures and contracts. Raw rows, runtimes, quality metrics,
+  and interpretation boundaries are preserved under
+  `benchmarks/results/2026-07-26-standard/`.
 
 ## Published dependency graph
 
@@ -33,6 +39,9 @@ Last verified: 2026-07-26
 - `tessera-laws`: `tessera-core`, `tessera-designs`, ScalaCheck, and the Scala
   standard library.
 - MUnit and MUnit-ScalaCheck appear only with test scope in generated POMs.
+- scikit-learn, rsample, splitTools, bench, and MUnit for the benchmark module
+  are non-published benchmark/test dependencies and do not enter any Tessera
+  artifact.
 
 Every artifact has the expected platform suffix:
 

@@ -108,6 +108,17 @@ lazy val lawsJVM    = laws.jvm
 lazy val lawsJS     = laws.js
 lazy val lawsNative = laws.native
 
+lazy val benchmarks = project
+  .in(file("benchmarks/scala"))
+  .dependsOn(designsJVM)
+  .settings(strictSettings)
+  .settings(
+    name           := "tessera-benchmarks",
+    publish / skip := true,
+    libraryDependencies +=
+      "org.scalameta" %% "munit" % munitV % Test
+  )
+
 lazy val root = project
   .in(file("."))
   .aggregate(
@@ -119,7 +130,8 @@ lazy val root = project
     designsNative,
     lawsJVM,
     lawsJS,
-    lawsNative
+    lawsNative,
+    benchmarks
   )
   .settings(
     name           := "tessera",
@@ -159,4 +171,13 @@ addCommandAlias(
     "designsJVM/publishLocal;designsJS/publishLocal;" +
     "designsNative/publishLocal;" +
     "lawsJVM/publishLocal;lawsJS/publishLocal;lawsNative/publishLocal"
+)
+
+addCommandAlias(
+  "benchmarkCheck",
+  ";benchmarks/test;benchmarks/runMain " +
+    "tessera.benchmarks.BenchmarkMain " +
+    "--manifest benchmarks/cases.csv --profile smoke " +
+    "--warmup 1 --measure 1 " +
+    "--output benchmarks/scala/target/scala-smoke.csv"
 )

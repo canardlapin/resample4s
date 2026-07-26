@@ -99,6 +99,13 @@ maintainers need when changing code.
     group/stratum partition through `n = 5`, for every legal `k <= 3`.
     Published laws separately cover full label-recoding identity and bootstrap
     sequence/multiplicity preservation through composition.
+33. Cross-language benchmarks compare one canonical public artifact. Every
+    runner receives the same deterministic fixture, proves the same
+    family-specific contract, materializes increasing non-bootstrap roles, and
+    performs one linear reduction inside the timer. Different RNGs and
+    heuristics may choose different legal assignments. Grouped-stratified
+    quality is reported beside time, and rsample's public data-frame workflow
+    is labeled separately from scikit-learn/splitTools index kernels.
 
 ## Evidence policy
 
@@ -107,7 +114,8 @@ receive exhaustive oracles. Distributional statements use fixed seed sets,
 predeclared confidence thresholds, and exact finite-sample expectations. Cost
 tests distinguish resident state, unit generation, candidate preflight, eager
 materialization, and receipt traversal. A snapshot may lock compatibility but
-cannot establish correctness.
+cannot establish correctness. Benchmark ratios are machine-specific evidence;
+they do not replace laws or asymptotic cost guardrails.
 
 ## Open release gate
 
