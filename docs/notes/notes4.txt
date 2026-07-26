@@ -1,0 +1,162 @@
+SupervisedData should live in Alder, not in the resampling library.
+
+More specifically:
+
+tessera-core
+  Population
+  IndexSpace
+  Selection / Draw / Permutation
+  FoldPartition / Split / Plan
+alder-data
+  Data
+  SupervisedData
+  Outcome
+  RowId
+  feature and outcome views
+alder-core
+  Learner
+  Workflow
+  Prepared
+  Prediction
+  FitContext
+alder-resampling
+  interprets Tessera designs over Alder data
+
+The boundary
+
+Tessera should see only something like:
+
+val population: Population[RowId] =
+  training.population
+
+It does not know:
+
+* which column is the outcome;
+* whether the task is supervised;
+* whether the outcome is continuous, categorical, censored, or multivariate;
+* how features are represented;
+* which learner will consume the data.
+
+It only determines which population members occupy analysis and assessment roles.
+
+Alder then interprets a selection:
+
+val analysisData =
+  training.select(split.analysis)
+val assessmentData =
+  training.select(split.assessment)
+
+I would avoid making it one heavy foundational class
+
+The earlier example used:
+
+SupervisedData[PatientRow, Double]
+
+as convenient surface syntax. Internally, I would prefer supervision to be a relationship between a dataset and an outcome projection.
+
+For example:
+
+final case class Data[A] private (
+  rows: IndexedSeq[A],
+  population: Population[RowId],
+  rowId: A => RowId
+):
+  def select(selection: Selection): DataView[A]
+
+Then:
+
+final case class SupervisedData[A, Y] private (
+  data: Data[A],
+  outcome: Outcome[A, Y]
+):
+  def population: Population[RowId] =
+    data.population
+  def select(
+    selection: Selection
+  ): SupervisedView[A, Y]
+
+Where:
+
+trait Outcome[-A, +Y]:
+  def apply(row: A): Y
+
+Construction could look like:
+
+val patients =
+  Data.fromRows(
+    trainingRows,
+    id = _.id
+  )
+val training =
+  patients.supervised(
+    outcome = Outcome(memoryScore, _.memoryScore)
+  )
+
+This is cleaner than asking the generic dataset to permanently be “supervised.” The same rows might participate in several tasks:
+
+val memoryTask =
+  patients.supervised(
+    Outcome(memoryScore, _.memoryScore)
+  )
+val diagnosisTask =
+  patients.supervised(
+    Outcome(diagnosis, _.diagnosis)
+  )
+val survivalTask =
+  patients.supervised(
+    Outcome.survival(
+      time = _.followUpYears,
+      event = _.converted
+    )
+  )
+
+Each task shares the same population identity and therefore can use the same compatible Tessera partitions where appropriate.
+
+Package location
+
+I would place the surface type here:
+
+package alder.data
+final case class SupervisedData[A, Y] ...
+
+But its essential abstractions might be:
+
+package alder.data
+Data[A]
+DataView[A]
+Outcome[A, Y]
+SupervisedData[A, Y]
+SupervisedView[A, Y]
+
+The distinction between owned data and indexed views is important:
+
+SupervisedData[A, Y]
+
+is the complete task population, while:
+
+SupervisedView[A, Y]
+
+is a selection such as one cross-validation analysis fold. A view should retain its mapping back to the root population rather than copying rows and inventing a new identity space.
+
+Interaction with Prepared
+
+The flow would be:
+
+val split: Split[Selection] =
+  folds.split(FoldId(2))
+val analysis: SupervisedView[PatientRow, Double] =
+  training.select(split.analysis)
+val assessment: SupervisedView[PatientRow, Double] =
+  training.select(split.assessment)
+val prepared: Prepared[FeatureRow, Double] =
+  workflow.prepare(analysis)
+val model =
+  learner.fit(prepared.trainingRows)
+val predictions =
+  workflow.predict(model, assessment)
+
+SupervisedData supplies rows, outcomes, and stable identity. Prepared records what the fitted feature workflow produced under the proper leakage boundary. They are complementary, not competing concepts.
+
+So the direct answer is:
+
+SupervisedData belongs in alder-data. Tessera owns population allocation, while Alder owns the interpretation of those allocations as predictors, outcomes, fitted transformations, and prediction tasks.

@@ -1,0 +1,414 @@
+Using the Alder design we have been developing, I would make three products visibly distinct:
+
+1. Out-of-fold predictions for the training population: every prediction comes from a model that did not fit that row.
+2. A final fitted elastic-net model, explicitly refitted on all training rows.
+3. Predictions from that final model on either the training data or a genuinely external dataset.
+
+For tuned elastic net, the statistically clean version is nested cross-validation.
+
+Example use
+
+import alder.*
+import alder.data.*
+import alder.linear.*
+import alder.metrics.*
+import alder.tuning.*
+import alder.resampling.*
+import tessera.*
+import tessera.designs.*
+// ---------------------------------------------------------------------------
+// 1. Data
+// ---------------------------------------------------------------------------
+final case class PatientRow(
+  id: PatientId,
+  site: SiteId,
+  age: Double,
+  hippocampalVolume: Double,
+  corticalThickness: Double,
+  memoryScore: Double
+)
+val training: SupervisedData[PatientRow, Double] =
+  SupervisedData(
+    rows = trainingRows,
+    id = _.id,
+    outcome = _.memoryScore
+  )
+val externalTest: Data[PatientRow] =
+  Data(
+    rows = externalTestRows,
+    id = _.id
+  )
+// ---------------------------------------------------------------------------
+// 2. Leakage-safe feature pipeline
+// ---------------------------------------------------------------------------
+val features =
+  FeatureMap
+    .columns[PatientRow](
+      age                 -> (_.age),
+      hippocampalVolume   -> (_.hippocampalVolume),
+      corticalThickness   -> (_.corticalThickness)
+    )
+    .andThen(Standardize.all)
+// Standardization is fitted separately inside every resampling fold.
+// The outer assessment rows never influence their own means or standard
+// deviations.
+// ---------------------------------------------------------------------------
+// 3. Elastic-net family
+// ---------------------------------------------------------------------------
+val elasticNet =
+  ElasticNet.regression(
+    loss = SquaredError,
+    intercept = Intercept.fit
+  )
+val candidates =
+  Grid.product(
+    ElasticNet.Alpha values Vector(
+      0.0,   // ridge
+      0.25,
+      0.50,
+      0.75,
+      1.0    // lasso
+    ),
+    ElasticNet.Lambda.logSpace(
+      from = 1e-4,
+      to = 10.0,
+      count = 60
+    )
+  )
+val workflow =
+  Workflow(
+    features = features,
+    learner = elasticNet
+  )
+// ---------------------------------------------------------------------------
+// 4. Resampling designs
+// ---------------------------------------------------------------------------
+val outerFolds =
+  KFold
+    .groupedStratified[PatientRow](
+      folds = 5,
+      group = _.site,
+      stratum = row => MemoryBand.from(row.memoryScore)
+    )
+    .repeat(5)
+val innerFolds =
+  KFold
+    .grouped[PatientRow](
+      folds = 5,
+      group = _.site
+    )
+// The inner folds are compiled independently inside each outer-analysis
+// population. They cannot access the corresponding outer assessment rows.
+// ---------------------------------------------------------------------------
+// 5. Nested cross-validation
+// ---------------------------------------------------------------------------
+val evaluation =
+  NestedCrossValidation.run(
+    workflow = workflow,
+    data = training,
+    outer = outerFolds,
+    tune = Tune.grid(
+      candidates = candidates,
+      inner = innerFolds,
+      objective = RMSE.minimize,
+      selection = Select.minimum
+    ),
+    seed = Seed.fromLong(20260725L),
+    retain = Retain.predictionsAndParameters
+  )
+
+The result should not be just a scalar score:
+
+evaluation: Either[
+  NestedCrossValidation.Error,
+  NestedCVResult[
+    PatientId,
+    Double,                    // observed outcome
+    Double,                    // prediction
+    ElasticNet.Parameters
+  ]
+]
+
+We can then inspect it:
+
+val result = evaluation.orThrow
+val outerScores: Plan[FoldScore] =
+  result.outerScores
+val parameterSelections: Plan[ElasticNet.Parameters] =
+  result.selectedParameters
+val predictions: RepeatedOutOfFoldPredictions[
+  PatientId,
+  Double,
+  Double
+] =
+  result.outOfFold
+
+⸻
+
+Honest predictions for the training rows
+
+Because the outer design is repeated five times, each training row receives five predictions, each from a model that excluded that row’s outer fold.
+
+val repeatedOOF =
+  result.outOfFold.longForm
+
+Conceptually:
+
+rowId   repeat   fold   observed   predicted   alpha   lambda
+p001    0        2      41.0       38.7        0.50    0.012
+p001    1        4      41.0       40.1        0.25    0.019
+p001    2        1      41.0       39.4        0.50    0.009
+...
+
+For one prediction per training row:
+
+val crossValidatedTrainingPredictions =
+  result.outOfFold.aggregate(
+    prediction = Aggregate.mean,
+    parameters = Aggregate.retainAll
+  )
+
+Its type might be:
+
+OutOfFoldPredictions[PatientId, Double, Double]
+
+Each row retains provenance:
+
+crossValidatedTrainingPredictions
+  .predictionFor(PatientId(p001))
+
+returning something like:
+
+OOFPrediction(
+  rowId = PatientId(p001),
+  observed = 41.0,
+  predicted = 39.54,
+  assessments = NonEmptyVector(
+    AssessmentPrediction(
+      repeat = 0,
+      fold = 2,
+      predicted = 38.7,
+      selected = ElasticNet.Parameters(
+        alpha = 0.50,
+        lambda = 0.012
+      )
+    ),
+    // ...
+  )
+)
+
+These are the appropriate “training-set predictions” for evaluating generalization:
+
+val honestTrainingRmse =
+  RMSE(
+    crossValidatedTrainingPredictions.observed,
+    crossValidatedTrainingPredictions.predicted
+  )
+val honestTrainingR2 =
+  RSquared.predictive(
+    crossValidatedTrainingPredictions.observed,
+    crossValidatedTrainingPredictions.predicted
+  )
+
+They are not predictions from one common fitted model. They are cross-fitted predictions assembled into the original row order.
+
+That distinction should remain visible in the result type.
+
+⸻
+
+Selecting parameters and fitting the final model
+
+The outer CV run estimates performance; it should not automatically choose the production model.
+
+For the final model, we run tuning on the complete training population and then invoke an explicit refit:
+
+val finalTuning =
+  Tune.grid(
+    candidates = candidates,
+    inner = KFold
+      .grouped[PatientRow](
+        folds = 5,
+        group = _.site
+      )
+      .repeat(10),
+    objective = RMSE.minimize,
+    selection = Select.oneStandardError(
+      prefer = ElasticNet.Preference
+        .largerLambda
+        .thenLargerAlpha
+    )
+  ).run(
+    workflow = workflow,
+    data = training,
+    seed = Seed.fromLong(847291L)
+  )
+
+The result contains parameter-selection evidence, but no reusable inner-fold model escapes:
+
+val chosen: ElasticNet.Parameters =
+  finalTuning.orThrow.selected
+
+For example:
+
+ElasticNet.Parameters(
+  alpha = 0.50,
+  lambda = 0.0187
+)
+
+Refitting is explicit:
+
+val finalModel =
+  Refit(
+    workflow = workflow.configure(chosen),
+    data = training
+  )
+
+With a result such as:
+
+finalModel: Either[
+  Workflow.FitError,
+  Workflow.Model[
+    PatientRow,
+    Double,
+    ElasticNet.Fitted
+  ]
+]
+val fitted = finalModel.orThrow
+
+⸻
+
+Predictions from the final model
+
+Resubstitution predictions on training data
+
+val fittedTrainingPredictions =
+  fitted.predict(training.features)
+
+These are produced by the model fitted on all training rows:
+
+fittedTrainingPredictions: PredictionFrame[
+  PatientId,
+  Double
+]
+
+They are useful for:
+
+* residual inspection;
+* calibration diagnostics;
+* finding influential or badly fitted observations;
+* comparing fitted values against cross-validated predictions.
+
+They are not an honest estimate of out-of-sample performance.
+
+Alder should make the distinction hard to miss:
+
+val honest =
+  crossValidatedTrainingPredictions
+// OutOfFoldPredictions[...]
+val resubstitution =
+  fitted.predict(training.features)
+// ModelPredictions[...]
+
+Not two identical Vector[Double] values whose provenance has disappeared.
+
+Prediction on external data
+
+val testPredictions =
+  fitted.predict(externalTest)
+
+Conceptually:
+
+rowId   predicted
+t001    43.8
+t002    37.1
+t003    51.4
+
+If the external dataset also has outcomes:
+
+val labelledTest: SupervisedData[PatientRow, Double] =
+  loadLabelledTestData()
+val testPredictions =
+  fitted.predict(labelledTest.features)
+val externalScore =
+  RMSE(
+    observed = labelledTest.outcomes,
+    predicted = testPredictions.values
+  )
+
+These are genuine held-out predictions from one final model fitted on the full training set.
+
+⸻
+
+Compact version of the intended API
+
+The common workflow might eventually read this cleanly:
+
+val workflow =
+  Standardize
+    .all(features)
+    .andThen(
+      ElasticNet.regression()
+    )
+val nested =
+  workflow.crossValidate(
+    data = training,
+    outer = KFold.grouped(5, _.site).repeat(5),
+    tuning = Tune.grid(
+      parameters = Grid(
+        Alpha(0.0, 0.25, 0.50, 0.75, 1.0),
+        Lambda.logSpace(1e-4, 10.0, 60)
+      ),
+      inner = KFold.grouped(5, _.site),
+      metric = RMSE
+    ),
+    seed = Seed(20260725L)
+  ).orThrow
+// Honest, cross-fitted predictions for training rows
+val oof =
+  nested.outOfFold.aggregate(Aggregate.mean)
+val estimatedGeneralization =
+  RMSE(oof.observed, oof.predicted)
+// Explicitly tune and refit on all training data
+val fitted =
+  workflow
+    .tune(
+      data = training,
+      using = nested.tuningProtocol,
+      seed = Seed(847291L)
+    )
+    .refit(training)
+    .orThrow
+// Optimistic fitted values, useful for diagnostics
+val fittedValues =
+  fitted.predict(training.features)
+// Deployment or external-test predictions
+val predictions =
+  fitted.predict(externalTest)
+
+The crucial semantic picture is:
+
+                         TRAINING POPULATION
+                                  │
+             ┌────────────────────┴────────────────────┐
+             │                                         │
+      nested outer CV                         final full-data tuning
+             │                                         │
+             ▼                                         ▼
+  out-of-fold predictions                    selected hyperparameters
+  honest performance estimate                          │
+                                                       ▼
+                                             explicit full-data refit
+                                                       │
+                                  ┌────────────────────┴──────────────┐
+                                  │                                   │
+                                  ▼                                   ▼
+                         fitted training values              external predictions
+                         diagnostic/in-sample                deployment/held-out
+
+The library should make it difficult to confuse those three prediction products:
+
+OutOfFoldPredictions[Id, Y, P]
+ModelPredictions[Id, P]
+ExternalPredictions[Id, P]
+
+They may share a lower-level prediction-frame representation, but their public wrappers should preserve how the predictions were obtained.

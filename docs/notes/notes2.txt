@@ -1,0 +1,40 @@
+The right center
+
+Yes. This deserves to be a standalone library.
+
+There is a genuine unification, but it is not:
+
+enum Resampling:
+  case KFold(...)
+  case Bootstrap(...)
+  case Permutation(...)
+
+That is merely a catalogue. It throws away the mathematical distinctions from which the useful laws follow.
+
+The proper center is:
+
+A pure, typed algebra of finite reindexings, partitions, and reproducible randomized designs.
+
+Cross-validation, bootstrapping, subsampling, jackknifing, and row permutations all arise from this substrate. They should nevertheless remain distinct higher-level artifacts, because each carries additional laws.
+
+I will use tessera as a working package name below, without treating the name as settled.
+
+⸻
+
+1. The unifying algebra: finite reindexing
+
+Let a population be indexed by the finite ordinal
+
+I_n = \{0,\ldots,n-1\}.
+
+A dataset is then an indexed family
+
+x : I_n rightarrow A.
+
+A reindexing
+
+rho : I_m rightarrow I_n
+
+produces a new indexed family
+
+x^\rho = x
