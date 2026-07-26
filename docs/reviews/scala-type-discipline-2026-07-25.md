@@ -67,10 +67,23 @@ the production grouped allocator is measured rather than only its heap helper,
 all selection and partition backings reach the receipt-encoding test, and no
 stale match over a changed public ADT was found.
 
-## Independent-review gate
+## Independent-review closure — 2026-07-26
 
-This pass applied the type-discipline checklist in the implementation context.
-It is not the PLAN phase-4 fresh-context independent review. Current
-orchestration rules prohibit delegation unless the user explicitly requests
-it, so that separate gate remains open and is not waived. The stable release
-tag must not be created until it is completed or explicitly waived.
+The user authorized a distinct fresh-context review of commit `3dc2d77`; its
+report is `fresh-context-2026-07-26.md`. The remediation diff was rechecked
+against this type-discipline checklist:
+
+- incremental digest state is a named per-invocation capability with typed
+  provider failure, not a global mutable cache;
+- buffered and streaming canonical writers are distinct internal types;
+- exact diagnostic absence outside the bounded oracle frontier remains
+  `Option`, with no sentinel or fabricated zero regret;
+- repeated diagnostics retain typed metrics rather than stuffing a summary
+  string;
+- the public recoding and bootstrap-composition laws preserve their precise
+  `Design`, `Labels`, `Selection`, and `Draw` types.
+
+No cast, unchecked variance, warning suppression, stringly error, partial
+public accessor, weakened coverage capability, or stale digest-provider
+implementation was introduced. The independent-review gate is closed; hosted
+CI remains the release blocker.

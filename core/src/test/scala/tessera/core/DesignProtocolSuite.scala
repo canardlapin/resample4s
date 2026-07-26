@@ -22,26 +22,34 @@ final class DesignProtocolSuite extends munit.FunSuite:
       val id: DigestAlgorithmId =
         right(DigestAlgorithmId.of("test128/v1"))
 
-      def digest(
-          chunks: Iterator[IArray[Byte]]
-      ): Either[DigestError, DigestValue] =
-        var first = 0x6a09e667f3bcc909L
-        var second = 0xbb67ae8584caa73bL
-        while chunks.hasNext do
-          val chunk = chunks.next()
-          var index = 0
-          while index < chunk.length do
-            val value = (chunk(index).toInt & 0xff).toLong
-            first = Rand.mix64(first ^ value)
-            second = Rand.mix64(second + value + 0x9e3779b97f4a7c15L)
-            index += 1
-        val result = new Array[Byte](16)
-        var index = 0
-        while index < 8 do
-          result(index) = (first >>> (56 - 8 * index)).toByte
-          result(index + 8) = (second >>> (56 - 8 * index)).toByte
-          index += 1
-        DigestValue.fromBytes(IArray.unsafeFromArray(result))
+      def newAccumulator(): Either[DigestError, DigestAccumulator] =
+        Right(
+          new DigestAccumulator:
+            private var first = 0x6a09e667f3bcc909L
+            private var second = 0xbb67ae8584caa73bL
+
+            def update(
+                chunk: IArray[Byte]
+            ): Either[DigestError, Unit] =
+              var index = 0
+              while index < chunk.length do
+                val value = (chunk(index).toInt & 0xff).toLong
+                first = Rand.mix64(first ^ value)
+                second =
+                  Rand.mix64(second + value + 0x9e3779b97f4a7c15L)
+                index += 1
+              Right(())
+
+            def finish(): Either[DigestError, DigestValue] =
+              val result = new Array[Byte](16)
+              var index = 0
+              while index < 8 do
+                result(index) = (first >>> (56 - 8 * index)).toByte
+                result(index + 8) =
+                  (second >>> (56 - 8 * index)).toByte
+                index += 1
+              DigestValue.fromBytes(IArray.unsafeFromArray(result))
+        )
 
   test("FNV-1a is chunk-boundary invariant and matches a known fixture") {
     val whole = bytes(104, 101, 108, 108, 111)
@@ -274,6 +282,44 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
       wideReceipt.verify(design, space, summary(5))(using test128),
       Right(())
     )
+  }
+
+  test("receipt traversal propagates an incremental provider failure") {
+    var sessions = 0
+    val failing =
+      new DigestAlgorithm:
+        val id: DigestAlgorithmId =
+          right(DigestAlgorithmId.of("failing/v1"))
+
+        def newAccumulator(): Either[DigestError, DigestAccumulator] =
+          sessions += 1
+          if sessions == 1 then
+            DigestAlgorithm.fnv1a64.newAccumulator()
+          else
+            Right(
+              new DigestAccumulator:
+                def update(
+                    chunk: IArray[Byte]
+                ): Either[DigestError, Unit] =
+                  Left(DigestError.ProviderFailure("fixture failure"))
+
+                def finish(): Either[DigestError, DigestValue] =
+                  fail("a failed accumulator must not be finished")
+            )
+
+    val design = new PublicGeneralDesign(3)
+    val compiled =
+      right(
+        design.compile(
+          right(IndexSpace.of(5)),
+          Seed.fromLong(9L)
+        )
+      )
+    assertEquals(
+      compiled.receipt(summary(5))(using failing),
+      Left(DigestError.ProviderFailure("fixture failure"))
+    )
+    assertEquals(sessions, 2)
   }
 
   test("semantic assignment encoding ignores selection backings") {

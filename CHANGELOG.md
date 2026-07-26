@@ -18,9 +18,12 @@ Initial cross-platform release candidate.
   and sampled jackknife; and free and within-block permutations.
 - Platform-stable SplitMix64 randomization with domain-separated streams.
 - Verification receipts with canonical assignment encoding and an open digest
-  provider. Built-in FNV-1a-64 is explicitly a non-adversarial checksum.
+  provider whose per-invocation accumulator consumes bytes incrementally.
+  Built-in FNV-1a-64 is explicitly a non-adversarial checksum.
 - Published law bundles, exhaustive oracles, calibrated statistical checks,
   cross-platform golden fixtures, and complexity guardrails.
+- Bounded exact `Optimum`/`Regret` diagnostics for small grouped allocations,
+  with worst-case aggregation across repeats and exhaustive regression lattices.
 - Consumer law bundles for group atomicity, stratification, bootstrap
   multiplicity/order/OOB semantics, permutation bijectivity and block
   preservation, reconstruction, recoding equivalence, and assignment

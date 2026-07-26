@@ -305,6 +305,57 @@ object ResamplingLaws:
             orderPreserved
     }
 
+  def bootstrapComposition(
+      split: Split[Draw],
+      embedding: Selection
+  ): Prop =
+    Prop.secure {
+      if split.analysis.codomain != embedding.domain ||
+          split.assessment.codomain != embedding.domain
+      then false
+      else
+        (
+          embedding.after(split.analysis),
+          embedding.after(split.assessment)
+        ) match
+          case (Right(composedDraw), Right(composedAssessment)) =>
+            var index = 0
+            var orderPreserved =
+              composedDraw.domain == split.analysis.domain
+            while index < composedDraw.domain && orderPreserved do
+              val expected =
+                split.analysis.at(index).flatMap(embedding.at)
+              orderPreserved =
+                expected == composedDraw.at(index)
+              index += 1
+            var ordinal = 0
+            var multiplicitiesPreserved = true
+            while ordinal < embedding.domain && multiplicitiesPreserved do
+              embedding.at(ordinal) match
+                case Left(_) => multiplicitiesPreserved = false
+                case Right(embeddedOrdinal) =>
+                  multiplicitiesPreserved =
+                    composedDraw.multiplicity(embeddedOrdinal) ==
+                      split.analysis.multiplicity(ordinal)
+              ordinal += 1
+            index = 0
+            var assessmentPreserved =
+              composedAssessment.domain == split.assessment.domain
+            while index < composedAssessment.domain &&
+                assessmentPreserved
+            do
+              assessmentPreserved =
+                split.assessment
+                  .at(index)
+                  .flatMap(embedding.at) ==
+                  composedAssessment.at(index)
+              index += 1
+            orderPreserved &&
+            multiplicitiesPreserved &&
+            assessmentPreserved
+          case _ => false
+    }
+
 /** Universal bijection and exchangeability-block laws. */
 object PermutationLaws:
   def bijection(permutation: Permutation): Prop =
@@ -441,21 +492,42 @@ object DesignLaws:
   )(
       equivalent: (A, A) => Boolean
   ): Prop =
+    Prop.secure(
+      compilationsEquivalent(first, second, space, seed)(equivalent)
+    )
+
+  def labelRecoding[
+      A,
+      Cov1 <: Coverage,
+      Cov2 <: Coverage
+  ](
+      first: Design[A, Cov1],
+      second: Design[A, Cov2],
+      labelPairs: IArray[(Labels, Labels)],
+      space: IndexSpace,
+      seed: Seed
+  )(
+      equivalent: (A, A) => Boolean
+  )(using algorithm: DigestAlgorithm): Prop =
     Prop.secure {
-      (first.compile(space, seed), second.compile(space, seed)) match
-        case (Right(left), Right(right)) =>
-          left.plan.shape.repeats == right.plan.shape.repeats &&
-          left.plan.shape.foldsPerRepeat ==
-            right.plan.shape.foldsPerRepeat &&
-          left.plan.keys.forall { key =>
-            (left.plan.at(key), right.plan.at(key)) match
-              case (Right(firstValue), Right(secondValue)) =>
-                equivalent(firstValue, secondValue)
-              case _ => false
+      val labelsEquivalent =
+        first.definition.labelCount == labelPairs.length &&
+          second.definition.labelCount == labelPairs.length &&
+          Vector.range(0, labelPairs.length).forall { index =>
+            val (firstLabels, secondLabels) = labelPairs(index)
+            firstLabels == secondLabels &&
+            first.definition.labelAt(index).toOption.contains(firstLabels) &&
+            second.definition.labelAt(index).toOption.contains(secondLabels)
           }
-        case (Left(firstError), Left(secondError)) =>
-          firstError == secondError
-        case _ => false
+      val identityEquivalent =
+        first.randomizationKey.value == second.randomizationKey.value &&
+          first.fingerprint == second.fingerprint &&
+          first.labelsFingerprint == second.labelsFingerprint
+      val assignmentsEquivalent =
+        compilationsEquivalent(first, second, space, seed)(equivalent)
+      labelsEquivalent &&
+      identityEquivalent &&
+      assignmentsEquivalent
     }
 
   def assignmentPerturbation[
@@ -488,3 +560,30 @@ object DesignLaws:
           unitDiffers && digestDiffers
         case _ => false
     }
+
+  private def compilationsEquivalent[
+      A,
+      Cov1 <: Coverage,
+      Cov2 <: Coverage
+  ](
+      first: Design[A, Cov1],
+      second: Design[A, Cov2],
+      space: IndexSpace,
+      seed: Seed
+  )(
+      equivalent: (A, A) => Boolean
+  ): Boolean =
+    (first.compile(space, seed), second.compile(space, seed)) match
+      case (Right(left), Right(right)) =>
+        left.plan.shape.repeats == right.plan.shape.repeats &&
+        left.plan.shape.foldsPerRepeat ==
+          right.plan.shape.foldsPerRepeat &&
+        left.plan.keys.forall { key =>
+          (left.plan.at(key), right.plan.at(key)) match
+            case (Right(firstValue), Right(secondValue)) =>
+              equivalent(firstValue, secondValue)
+            case _ => false
+        }
+      case (Left(firstError), Left(secondError)) =>
+        firstError == secondError
+      case _ => false

@@ -84,6 +84,21 @@ maintainers need when changing code.
 29. `tessera-laws` publishes the consumer-relevant universal laws directly.
     Tolerance-bearing redraw, OOB, draw-length, and sampled-rank checks remain
     in the statistical test suite and are not promoted to laws.
+30. Digest providers expose one incremental accumulator per invocation.
+    Assignment, design, and label canonical bytes are pushed synchronously;
+    buffered canonical writers remain a separate internal type used only for
+    byte fixtures. Provider failure is a typed `DigestError`.
+31. Exact grouped quality diagnostics have a declared bounded frontier:
+    `n <= 32` and `k^g <= 100000`. Within it, compilation records exact
+    `Optimum` and additive `Regret`; outside it, those metrics are absent.
+    Repeated designs retain worst-case quality instead of discarding all
+    diagnostics except the repeat count.
+32. The small grouped oracle is a real exhaustive lattice, not a handful of
+    examples: grouped configurations cover every canonical label partition
+    through `n = 6`, and grouped-stratified covers the cross-product of every
+    group/stratum partition through `n = 5`, for every legal `k <= 3`.
+    Published laws separately cover full label-recoding identity and bootstrap
+    sequence/multiplicity preservation through composition.
 
 ## Evidence policy
 
@@ -97,8 +112,8 @@ cannot establish correctness.
 ## Open release gate
 
 The implementation-context type-discipline review is recorded under
-`docs/reviews/`. The distinct fresh-context independent review required by PLAN
-phase 4 remains open because the current orchestration policy does not permit
-delegation without explicit user authorization. It has not been self-approved
-or silently waived. Hosted CI also cannot be green until the repository has a
-remote. No stable release tag may be created while either gate is open.
+`docs/reviews/`. The user-authorized fresh-context review examined commit
+`3dc2d77` and found receipt-streaming/cost, exhaustive-oracle/diagnostic, and
+published-law gaps. Decisions 30–32 are the remediation; the independent
+review is not self-approved or waived. Hosted CI still cannot be green until
+the repository has a remote, so no stable release tag may yet be created.

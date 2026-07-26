@@ -1,8 +1,8 @@
 # Tessera — Execution Plan
 
-Companion to `PRD.md` (v0.6). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
+Companion to `PRD.md` (v0.7). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
 
-Revised 2026-07-25 after three independent PRD review passes and the implementation type-discipline pass; the phase graph/release gates changed in the first pass (PRD §12 D8–D10), digest extensibility/lazy failure timing/grouped randomization changed in the second (D13–D16), lazy representations/catalogue semantics/public design extensibility changed in the third (D17–D21), and cast-free compilation/typed diagnostics/multi-label ownership changed during implementation (D22).
+Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, and the phase-4 fresh-context assurance review; the latter made receipt digesting truly incremental, completed bounded optimum/regret diagnostics and oracle lattices, and closed the published-law surface (PRD §12 D24–D26).
 
 ## Phase 0 — Bootstrap (small)
 

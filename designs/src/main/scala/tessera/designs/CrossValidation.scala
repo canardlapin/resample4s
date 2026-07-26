@@ -121,7 +121,9 @@ final class GroupedKFold[Cov <: Coverage.Exact] private[designs] (
             folds,
             groups,
             repeat
-          )
+          ),
+        observed =>
+          DesignSupport.groupedDiagnostics(groups, folds, observed)
       )
     }
 
@@ -171,7 +173,7 @@ final class GroupedStratifiedKFold[
         Left(DesignError.LengthMismatch(context.space.size, strata.size))
       else
         val partitions = new Array[FoldPartition](repeats)
-        var observedDiagnostics = PlanDiagnostics.empty
+        val observedDiagnostics = Vector.newBuilder[PlanDiagnostics]
         var repeat = 0
         var error: Option[DesignError] = None
         if folds < 2 then error = Some(DesignError.TooFewFolds(folds, 2))
@@ -192,20 +194,19 @@ final class GroupedStratifiedKFold[
             case Left(value) => error = Some(value)
             case Right((partition, observed)) =>
               partitions(repeat) = partition
-              observedDiagnostics = observed
+              observedDiagnostics += observed
           repeat += 1
         error match
           case Some(value) => Left(value)
           case None =>
-            val combined =
-              if repeats == 1 then observedDiagnostics
-              else
-                PlanDiagnostics.unsafe(
-                  (DiagnosticMetric.Repeats, BigInt(repeats))
-                )
             ExactPartitionSpec.of(
               IArray.unsafeFromArray(partitions),
-              combined
+              DesignSupport.groupedStratifiedDiagnostics(
+                groups,
+                strata,
+                folds,
+                observedDiagnostics.result()
+              )
             )
     }
 

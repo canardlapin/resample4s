@@ -19,9 +19,9 @@ reason nested cross-validation cannot reach an outer assessment fold.
 
 ## Status
 
-This repository is currently `0.1.0-SNAPSHOT`. The public surface is not frozen
-until the fresh-context review and hosted-CI gates in `PLAN.md` pass. The Alder
-integration gate is complete. The implementation follows `PRD.md` v0.6;
+This repository is currently `0.1.0-SNAPSHOT`. The fresh-context review and
+Alder integration gates are complete; the public surface is not frozen until
+the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.7;
 rolling-origin/time-series designs are explicitly deferred.
 
 ## Example
@@ -81,8 +81,9 @@ correctness evidence.
 assignment fingerprints. It does not reconstruct a design. The built-in
 FNV-1a-64 provider is only a checksum for accidental divergence. It is not
 collision-resistant, tamper-evident, or authenticated. Consumers may supply an
-arbitrary-length digest provider, but authentication still requires trusted
-storage or a signature outside Tessera.
+arbitrary-length digest provider through a per-invocation incremental
+accumulator; authentication still requires trusted storage or a signature
+outside Tessera.
 
 ## Honest limits
 

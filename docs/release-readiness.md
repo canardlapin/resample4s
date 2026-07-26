@@ -4,8 +4,8 @@ Last verified: 2026-07-26
 
 ## Completed evidence
 
-- `sbt -batch testAll`: 32 core, 41 designs, and 8 laws tests passed
-  independently on JVM, Scala.js, and Scala Native (243 total).
+- `sbt -batch testAll`: 33 core, 46 designs, and 8 laws tests passed
+  independently on JVM, Scala.js, and Scala Native (261 total).
 - `sbt -batch compatibilityAll`: all nine MiMa and TASTy-MiMa tasks passed.
   The previous-artifact set is intentionally empty for the first `0.1.0`
   baseline and becomes `0.1.0` for later versions.
@@ -17,7 +17,12 @@ Last verified: 2026-07-26
 - A clean temporary consumer, containing no source-project dependency, resolved
   `tessera-laws` from the local artifact repository and passed exact coverage,
   reconstruction, group atomicity, stratification, bootstrap semantics, and
-  within-block permutation laws on JVM, Scala.js, and Scala Native.
+  composition, within-block permutation, and complete recoding laws on JVM,
+  Scala.js, and Scala Native.
+- The PLAN phase-4 fresh-context review inspected commit `3dc2d77` without
+  conversation history. Its receipt-streaming/cost, oracle/diagnostic, and
+  public-law findings are resolved and recorded in
+  `docs/reviews/fresh-context-2026-07-26.md`.
 - Alder commit `648ac3b` passed its 114-test module set on each platform and
   retains the complete Tessera receipt in cross-fit lineage.
 
@@ -39,13 +44,11 @@ _native0.5_3
 
 ## Open gates
 
-1. The fresh-context independent review required by PLAN phase 4 is neither
-   completed nor waived.
-2. Hosted GitHub Actions CI has not run because the repository has no remote;
+1. Hosted GitHub Actions CI has not run because the repository has no remote;
    the equivalent local JVM, Scala.js, Scala Native, and compatibility tasks
    are green, but local evidence is not represented as hosted-CI evidence.
-3. `CHANGELOG.md` remains `Unreleased`, and the build remains
-   `0.1.0-SNAPSHOT`, until that review closes.
-4. No Git remote is configured, so a release tag cannot be pushed.
+2. `CHANGELOG.md` remains `Unreleased`, and the build remains
+   `0.1.0-SNAPSHOT`, until hosted CI closes.
+3. No Git remote is configured, so a release tag cannot be pushed.
 
 The stable tag must not be created while any item above remains open.

@@ -106,6 +106,14 @@ final class PublishedLawsSuite extends munit.FunSuite:
       ).plan
     bootstrap.iterator.foreach { (_, split) =>
       check(ResamplingLaws.bootstrapSplit(split, n, n))
+      val embedding =
+        right(
+          Selection.from(
+            ints(0, 2, 3, 6, 8, 9, 12, 15),
+            right(IndexSpace.of(16))
+          )
+        )
+      check(ResamplingLaws.bootstrapComposition(split, embedding))
     }
 
     val free =
@@ -185,6 +193,40 @@ final class PublishedLawsSuite extends munit.FunSuite:
         right(Summary.of("tessera/size", 4L)),
         UnitKey(0, 0)
       )(_ != _)
+    )
+
+    val firstGroups = labels(10, 10, 20, 20, 30, 30, 40, 40)
+    val secondGroups = labels(-7, -7, 3, 3, 99, 99, 1, 1)
+    val firstStrata = labels(5, 6, 5, 6, 5, 6, 5, 6)
+    val secondStrata = labels(100, -1, 100, -1, 100, -1, 100, -1)
+    check(
+      DesignLaws.labelRecoding(
+        KFold.groupedStratified(2, firstGroups, firstStrata),
+        KFold.groupedStratified(2, secondGroups, secondStrata),
+        IArray.unsafeFromArray(
+          Array(
+            (firstGroups, secondGroups),
+            (firstStrata, secondStrata)
+          )
+        ),
+        right(IndexSpace.of(8)),
+        Seed.fromLong(21L)
+      )(_ == _)
+    )
+    val brokenGroups = labels(10, 20, 10, 20, 30, 30, 40, 40)
+    checkFails(
+      DesignLaws.labelRecoding(
+        KFold.groupedStratified(2, firstGroups, firstStrata),
+        KFold.groupedStratified(2, brokenGroups, secondStrata),
+        IArray.unsafeFromArray(
+          Array(
+            (firstGroups, brokenGroups),
+            (firstStrata, secondStrata)
+          )
+        ),
+        right(IndexSpace.of(8)),
+        Seed.fromLong(21L)
+      )(_ == _)
     )
   }
 

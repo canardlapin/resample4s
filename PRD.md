@@ -2,7 +2,7 @@
 
 **A pure, typed algebra of finite reindexings, partitions, and reproducible randomized designs.**
 
-- Status: proposal v0.6 (integration-validated draft), 2026-07-25 — revised after three independent review passes, the implementation type-discipline pass, and the Alder integration spike (see §12 decision log)
+- Status: proposal v0.7 (review-remediated release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, and the phase-4 fresh-context assurance review (see §12 decision log)
 - Working name: `tessera` (a tessera is one tile of a mosaic — the library partitions a population into tiles). Treated as settled unless vetoed.
 - Repo: `~/code/scala/tessera`, sibling to `alder` (consumer) and `gale` (unrelated at the dependency level)
 - Supersedes: `~/code/scala/resample4s/resample4s.md` (2026-07-23 design doc — broader, Frame4s-coupled conception; tessera is its data-agnostic core, extracted)
@@ -282,6 +282,7 @@ Strata are processed by descending member count, ties broken by ascending smalle
 **Grouped k-fold** (`KFold.grouped(k, groups)`):
 - Algorithm: longest-processing-time-first bin packing. Walk groups in seeded LPT processing order; assign each to the currently-smallest fold; equal-load folds use the seed-derived fold-priority permutation.
 - Guarantee: **group atomicity is absolute** (law 5) — a group never straddles roles. Fold size balance is **best-effort**, not bounded: a single group of size > n/k makes balance arithmetically impossible, and that is not an error. `PlanDiagnostics` reports `maxFoldSize`, `minFoldSize`, and `sizeImbalance`.
+- For bounded small configurations (`n ≤ 32` and `k^g ≤ 100000`), compilation also exhausts every non-empty-fold group allocation and reports the exact optimum imbalance plus non-negative additive regret. Larger configurations omit `Optimum`/`Regret` rather than pretending a heuristic baseline is exact. Repeated designs retain the worst achieved imbalance/regret and record the repeat count.
 - Infeasible only when: `distinctGroups < k` (cannot fill k non-empty folds) → `DesignError.TooFewGroups`.
 - **An oversized group is never an error.** The v0.1 draft said otherwise; it was wrong.
 
@@ -303,7 +304,8 @@ Strata are processed by descending member count, ties broken by ascending smalle
 
   and choose the fold with minimum `ΔJ`. Equal increments use the seed-derived fold-priority permutation. There is no informal “remaining-mass target”: the equations above are the complete executable specification.
 - Guarantee: group atomicity is absolute; stratum balance is **best-effort with no bound**. This is a multi-objective allocation problem and pretending otherwise would be dishonest. `PlanDiagnostics` reports per-stratum deviation and `groupPurity` (fraction of groups that are single-stratum), so callers can see how well it went.
-- Verification strategy: exhaustive allocation oracles over small `n`, `k`, and label configurations compute the true minimum `J*`. The quality measure is non-negative additive regret `Jheuristic − J*`, which remains defined when `J* = 0`. Regression thresholds are one-sided: larger regret can fail; smaller regret is always accepted.
+- For the same bounded small frontier (`n ≤ 32` and `k^g ≤ 100000`), compilation reports the true minimum `J*` and additive regret; outside it those two diagnostics are absent. Repeated designs retain the worst achieved objective/regret while preserving the exact optimum and other worst-case diagnostics.
+- Verification strategy: exhaustive allocation oracles over every canonical label partition at `n ≤ 5` (and grouped-only partitions through `n ≤ 6`), each legal `k ≤ 3`, compute the true optimum independently. The quality measure is non-negative additive regret `Jheuristic − J*`, which remains defined when `J* = 0`. Regression thresholds are one-sided: larger regret can fail; smaller regret is always accepted.
 
 **Grouped bootstrap** (`Bootstrap.grouped(times, groups)`):
 - Let `g` be the number of groups. Each unit samples **exactly `g` group ids independently and uniformly with replacement** from the canonical group order. A group drawn *j* times contributes all of its rows *j* times, in ascending member-ordinal order on each occurrence; the order of group draws remains observable in the resulting `Draw`.
@@ -324,9 +326,14 @@ object DigestValue:
   def fromBytes(bytes: IArray[Byte]): Either[DigestError, DigestValue]
   // rejects empty values; defensively copies
 
+trait DigestAccumulator:                      // one incremental invocation
+  def update(chunk: IArray[Byte]): Either[DigestError, Unit]
+  def finish(): Either[DigestError, DigestValue]
+
 trait DigestAlgorithm:                        // open consumer capability
   def id: DigestAlgorithmId
-  def digest(chunks: Iterator[IArray[Byte]]): Either[DigestError, DigestValue]
+  def newAccumulator(): Either[DigestError, DigestAccumulator]
+  final def digest(chunks: Iterator[IArray[Byte]]): Either[DigestError, DigestValue]
 
 object DigestAlgorithm:
   val fnv1a64: DigestAlgorithm                // built-in, zero-dep; emits 8 bytes
@@ -368,7 +375,7 @@ extension (receipt: PlanReceipt)
 
 The seed is an input recorded by the receipt, not independently re-supplied to `verify`. If changing only the stored seed changes the allocation, verification reports an **assignment mismatch** after recompilation; it cannot honestly label that a seed mismatch without an external expected seed. If the design is seed-independent or the two seeds collide on the same finite assignment, verification succeeds—necessarily, because every value it can recompute is equal. Consumers that possess an expected seed compare `receipt.seed` directly before verification.
 
-`DigestAlgorithm` is a real open capability, not a closed enum. `DigestValue` holds arbitrary-length bytes, so a consumer can adapt SHA-256 or another implementation without tessera depending on that library. The capability contract is pure and deterministic: an id names one exact byte-level algorithm/version, equal concatenated canonical bytes yield equal digest bytes regardless of iterator chunk boundaries, and the provider neither mutates nor retains chunks. Digest results and all public byte inputs are defensively copied. A cryptographic digest can provide collision-resistant content commitments, but authentication of the receipt still requires trusted storage or a signature outside tessera.
+`DigestAlgorithm` is a real open capability, not a closed enum. `DigestValue` holds arbitrary-length bytes, so a consumer can adapt SHA-256 or another implementation without tessera depending on that library. Every invocation creates an independent `DigestAccumulator`; Tessera pushes framed chunks to `update` as they are generated and calls `finish` once. The capability contract is pure and deterministic: an id names one exact byte-level algorithm/version, equal concatenated canonical bytes yield equal digest bytes regardless of chunk boundaries, and the accumulator neither mutates nor retains chunks after `update` returns. The final `digest` convenience method is framework-owned and obeys the same protocol. Digest results and all public byte inputs are defensively copied. A cryptographic digest can provide collision-resistant content commitments, but authentication of the receipt still requires trusted storage or a signature outside tessera.
 
 **Canonical bytes are versioned and framed.** `AlgorithmId` selects the encoding schema. Tags and identifiers are UTF-8 with byte-length prefixes; `Int`/`Long` values are signed fixed-width big-endian; sequences carry element counts; sum alternatives carry explicit tags. Every assignment stream begins with `IndexSpace.size` and `PlanShape`, then frames each `UnitKey` before its semantic value. No `toString`, platform hash, locale, or collection iteration order enters the stream. Chunk boundaries are transport only and are not hashed as data. Golden byte fixtures precede digest fixtures so an encoding regression is distinguishable from a digest-provider regression.
 
@@ -401,7 +408,7 @@ Laziness is what buys this. The v0.1 draft materialized every selection, which m
 
 **Compilation work and failure timing.** The table above describes resident state and `at`; compilation has its own contract:
 
-- plain/stratified partition compilation is O(n + s·log s); grouped LPT compilation is O(n + g·log g + g·log k) using a fold-load priority queue; grouped-stratified compilation is O(n + g·log g + k·q·M(log n)) using sparse profiles and exact `BigInt` delta comparisons. These designs finish allocation before returning `Compiled`; `.repeat(r)` multiplies their allocation work by `r`;
+- plain/stratified partition compilation is O(n + s·log s); grouped LPT compilation is O(n + g·log g + g·log k) using a fold-load priority queue; grouped-stratified compilation is O(n + g·log g + k·q·M(log n)) using sparse profiles and exact `BigInt` delta comparisons. On the fixed diagnostic frontier `n ≤ 32 ∧ k^g ≤ 100000`, grouped designs additionally enumerate at most 100000 allocations for exact optimum/regret; the hard constant cap preserves the asymptotic bounds and is exercised near its frontier. These designs finish allocation before returning `Compiled`; `.repeat(r)` multiplies allocation work by `r`, while the seed-invariant exact optimum is computed once per compilation;
 - seed-only designs validate parameters and derive their `u` child seeds in O(u), without generating assignments;
 - `Bootstrap(..., OobPolicy.Allow)` follows that seed-only path;
 - `Bootstrap(..., OobPolicy.Fail)` generates each candidate draw once during compilation, for O(t·n) work, and fails before constructing a plan if any unit has empty OOB;
@@ -575,7 +582,8 @@ Allocation, unit-count, candidate-generation, and canonical-encoding work assert
 tessera-core      IndexSpace, Reindexing lattice (Draw/Injection/Selection/Permutation),
                   FoldPartition, Split, Coverage, Plan, Seed/Rand, Design, Labels,
                   DesignDescriptor/DesignDefinition, PlanCost, canonical encoders,
-                  Fingerprint/DigestAlgorithm/PlanReceipt, DesignError
+                  Fingerprint/DigestAlgorithm/DigestAccumulator/PlanReceipt,
+                  DesignError
 tessera-designs   the catalogue of §5 (depends on core)
 tessera-laws      law bundles + generators + oracles (depends on core+designs; scalacheck at compile scope)
 ```
@@ -658,3 +666,6 @@ Resolutions from three independent review passes on 2026-07-25, beginning with P
 | **D21** | Every v0.1 catalogue family has a normative generator (§4.10), including shuffle/deal K-fold, shuffle-split holdout, n-of-n bootstrap, lexicographic delete-*d* unranking with uniform sampled ranks, and free/within-block Fisher–Yates permutations. | Names such as “shuffle-split” and “sampled delete-d” are not algorithms: they leave stream paths, ordering, replacement, rank distribution, and duplicate handling open, defeating cross-platform fixtures and honest statistical tests. |
 | **D22** | The implementation discipline pass removes erased coverage casts, replaces string-keyed diagnostics with `DiagnosticMetric`, and lets a definition own a framed, defensively copied sequence of `Labels`. | The initial implementation could recover its generic route only with `asInstanceOf`, could misspell observable quality metrics, and could commit only groups—not strata—as the grouped-stratified label fingerprint. A typed compile closure, closed metric ADT, and label-set framing preserve all three guarantees without widening the public error channel. |
 | **D23** | Alder integration adds `Coverage.ExactOnce`; one-repeat exact catalogue designs and the core `exactOncePartitions` route mint it, while repeated designs return only `Exact`. Alder's total `CompleteResampler` factory accepts `ExactOnce` and retains a policy-tagged rendering of the full `PlanReceipt`. | The phase-5 spike found that v0.5's `Exact` promise was per repeat but Alder D19 is exactly once over the whole plan. A repeated K-fold was therefore a counterexample to the claimed adapter signature. The stronger capability fixes the consumer boundary without weakening the per-repeat coverage and reconstruction laws. |
+| **D24** | An open digest provider creates an independent incremental `DigestAccumulator` per invocation. Canonical receipt bytes are pushed synchronously as they are generated; the framework never buffers one general-plan unit before hashing it. | The phase-4 fresh review found that the iterator-shaped provider API was open but the writer accumulated Θ(unit size) chunks, contradicting the O(1)-state receipt contract. A stateful per-invocation capability keeps providers open while making streaming observable and testable. |
+| **D25** | Exact `Optimum`/`Regret` diagnostics are computed only on the explicit bounded frontier `n ≤ 32 ∧ k^g ≤ 100000`; repeated grouped designs aggregate worst achieved quality instead of discarding diagnostics. The independent test oracle exhausts all canonical small label partitions. | “Where available” was previously implemented only as a few handpicked test fixtures, and repeated grouped-stratified plans retained only their repeat count. A bounded exact frontier makes availability honest and predictable without changing the asymptotic compilation contract. |
+| **D26** | The published law module exposes full label-recoding equivalence (owned labels, randomization key, fingerprints, and compiled assignments) and bootstrap order/multiplicity preservation through composition. | The catalogue tests covered these universal claims, but the consumer-facing bundle exposed only weaker assignment equivalence and single-plan bootstrap semantics. The release surface now matches laws 7 and 12 rather than relying on internal evidence. |

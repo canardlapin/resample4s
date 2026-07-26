@@ -51,11 +51,34 @@ object DigestValue:
 
   given CanEqual[DigestValue, DigestValue] = CanEqual.derived
 
+/** One incremental invocation of a [[DigestAlgorithm]].
+  *
+  * Implementations consume each chunk before `update` returns and must neither
+  * mutate nor retain it. A session is single-use: callers update it zero or more
+  * times and then call `finish` exactly once.
+  */
+trait DigestAccumulator:
+  def update(chunk: IArray[Byte]): Either[DigestError, Unit]
+  def finish(): Either[DigestError, DigestValue]
+
+/** Open, incremental digest capability used by audit receipts. */
 trait DigestAlgorithm:
   def id: DigestAlgorithmId
-  def digest(
+  def newAccumulator(): Either[DigestError, DigestAccumulator]
+
+  final def digest(
       chunks: Iterator[IArray[Byte]]
-  ): Either[DigestError, DigestValue]
+  ): Either[DigestError, DigestValue] =
+    newAccumulator().flatMap { accumulator =>
+      var failure: Option[DigestError] = None
+      while chunks.hasNext && failure.isEmpty do
+        accumulator.update(chunks.next()) match
+          case Left(error) => failure = Some(error)
+          case Right(_)    => ()
+      failure match
+        case Some(error) => Left(error)
+        case None        => accumulator.finish()
+    }
 
 object DigestAlgorithm:
   /** FNV-1a-64 is a non-adversarial checksum for accidental divergence.
@@ -70,24 +93,30 @@ object DigestAlgorithm:
       val id: DigestAlgorithmId =
         DigestAlgorithmId.unsafe("fnv1a64/v1")
 
-      def digest(
-          chunks: Iterator[IArray[Byte]]
-      ): Either[DigestError, DigestValue] =
-        var hash = 0xcbf29ce484222325L
-        while chunks.hasNext do
-          val chunk = chunks.next()
-          var index = 0
-          while index < chunk.length do
-            hash ^= (chunk(index).toInt & 0xff).toLong
-            hash *= 0x100000001b3L
-            index += 1
-        val bytes = new Array[Byte](8)
-        var index = 0
-        while index < 8 do
-          bytes(index) = (hash >>> (56 - 8 * index)).toByte
-          index += 1
+      def newAccumulator(): Either[DigestError, DigestAccumulator] =
         Right(
-          DigestValue.fromOwned(IArray.unsafeFromArray(bytes))
+          new DigestAccumulator:
+            private var hash = 0xcbf29ce484222325L
+
+            def update(
+                chunk: IArray[Byte]
+            ): Either[DigestError, Unit] =
+              var index = 0
+              while index < chunk.length do
+                hash ^= (chunk(index).toInt & 0xff).toLong
+                hash *= 0x100000001b3L
+                index += 1
+              Right(())
+
+            def finish(): Either[DigestError, DigestValue] =
+              val bytes = new Array[Byte](8)
+              var index = 0
+              while index < 8 do
+                bytes(index) = (hash >>> (56 - 8 * index)).toByte
+                index += 1
+              Right(
+                DigestValue.fromOwned(IArray.unsafeFromArray(bytes))
+              )
         )
 
 sealed trait Fingerprint

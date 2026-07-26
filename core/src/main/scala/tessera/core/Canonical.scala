@@ -82,8 +82,10 @@ private[tessera] object Identifiers:
   * Each operation emits a type tag and a length-framed value. Consumers cannot
   * inject unframed bytes.
   */
-final class CanonicalWriter private[tessera] ():
-  private val output = ArrayBuffer.empty[IArray[Byte]]
+final class CanonicalWriter private[tessera] (
+    sink: IArray[Byte] => Either[DigestError, Unit]
+):
+  private var failure: Option[DigestError] = None
 
   def int(value: Int): Unit =
     rawByte(1)
@@ -104,7 +106,7 @@ final class CanonicalWriter private[tessera] ():
       case Right(bytes) =>
         rawByte(4)
         rawInt(bytes.length)
-        output += bytes
+        emit(bytes)
         Right(())
 
   def fraction(value: Fraction): Unit =
@@ -149,34 +151,61 @@ final class CanonicalWriter private[tessera] ():
       case Left(error) =>
         throw new IllegalStateException(s"invalid owned variant: $error")
 
-  private[tessera] def chunks: Vector[IArray[Byte]] = output.toVector
+  private[tessera] def error: Option[DigestError] = failure
 
   private[tessera] def rawByte(value: Int): Unit =
-    output += IArray.unsafeFromArray(Array(value.toByte))
+    emit(IArray.unsafeFromArray(Array(value.toByte)))
 
   private[tessera] def rawInt(value: Int): Unit =
-    output += IArray.unsafeFromArray(
-      Array(
-        (value >>> 24).toByte,
-        (value >>> 16).toByte,
-        (value >>> 8).toByte,
-        value.toByte
+    emit(
+      IArray.unsafeFromArray(
+        Array(
+          (value >>> 24).toByte,
+          (value >>> 16).toByte,
+          (value >>> 8).toByte,
+          value.toByte
+        )
       )
     )
 
   private[tessera] def rawLong(value: Long): Unit =
-    output += IArray.unsafeFromArray(
-      Array(
-        (value >>> 56).toByte,
-        (value >>> 48).toByte,
-        (value >>> 40).toByte,
-        (value >>> 32).toByte,
-        (value >>> 24).toByte,
-        (value >>> 16).toByte,
-        (value >>> 8).toByte,
-        value.toByte
+    emit(
+      IArray.unsafeFromArray(
+        Array(
+          (value >>> 56).toByte,
+          (value >>> 48).toByte,
+          (value >>> 40).toByte,
+          (value >>> 32).toByte,
+          (value >>> 24).toByte,
+          (value >>> 16).toByte,
+          (value >>> 8).toByte,
+          value.toByte
+        )
       )
     )
+
+  private def emit(value: IArray[Byte]): Unit =
+    if failure.isEmpty then
+      sink(value) match
+        case Left(error) => failure = Some(error)
+        case Right(_)    => ()
+
+private[tessera] final class CanonicalBuffer private[tessera] ():
+  private val output = ArrayBuffer.empty[IArray[Byte]]
+  val writer: CanonicalWriter =
+    new CanonicalWriter(chunk =>
+      output += chunk
+      Right(())
+    )
+  def chunks: Vector[IArray[Byte]] = output.toVector
+
+private[tessera] object CanonicalWriter:
+  def buffered(): CanonicalBuffer = new CanonicalBuffer()
+
+  def streaming(
+      sink: IArray[Byte] => Either[DigestError, Unit]
+  ): CanonicalWriter =
+    new CanonicalWriter(sink)
 
 sealed trait DescriptorValue:
   private[tessera] def write(out: CanonicalWriter): Unit
@@ -322,7 +351,15 @@ private[tessera] object CanonicalDesign:
       descriptor: DesignDescriptor,
       labels: Vector[Labels]
   ): Vector[IArray[Byte]] =
-    val out = new CanonicalWriter()
+    val buffer = CanonicalWriter.buffered()
+    writeDesign(descriptor, labels, buffer.writer)
+    buffer.chunks
+
+  private def writeDesign(
+      descriptor: DesignDescriptor,
+      labels: Vector[Labels],
+      out: CanonicalWriter
+  ): Unit =
     out.textUnchecked("tessera/design/v1")
     descriptor.write(out)
     out.bool(labels.nonEmpty)
@@ -333,7 +370,6 @@ private[tessera] object CanonicalDesign:
         out.beginSequenceUnchecked(multiple.length)
         multiple.foreach(writeLabels(_, out))
       case _ => ()
-    out.chunks
 
   def designChunks(
       descriptor: DesignDescriptor,
@@ -342,28 +378,37 @@ private[tessera] object CanonicalDesign:
     designChunks(descriptor, labels.toVector)
 
   def labelChunks(labels: Labels): Vector[IArray[Byte]] =
-    val out = new CanonicalWriter()
-    out.textUnchecked("tessera/labels/v1")
-    writeLabels(labels, out)
-    out.chunks
+    val buffer = CanonicalWriter.buffered()
+    writeLabelSet(Vector(labels), buffer.writer)
+    buffer.chunks
 
   def labelChunks(labels: Vector[Labels]): Vector[IArray[Byte]] =
     labels match
       case Vector(single) => labelChunks(single)
       case multiple =>
-        val out = new CanonicalWriter()
+        val buffer = CanonicalWriter.buffered()
+        writeLabelSet(multiple, buffer.writer)
+        buffer.chunks
+
+  private def writeLabelSet(
+      labels: Vector[Labels],
+      out: CanonicalWriter
+  ): Unit =
+    labels match
+      case Vector(single) =>
+        out.textUnchecked("tessera/labels/v1")
+        writeLabels(single, out)
+      case multiple =>
         out.textUnchecked("tessera/label-set/v1")
         out.beginSequenceUnchecked(multiple.length)
         multiple.foreach(writeLabels(_, out))
-        out.chunks
 
   def randomizationKey(
       descriptor: DesignDescriptor,
       labels: Vector[Labels]
   ): DesignKey =
     val digest =
-      DigestAlgorithm.fnv1a64
-        .digest(designChunks(descriptor, labels).iterator) match
+      digestDesign(descriptor, labels, DigestAlgorithm.fnv1a64) match
         case Right(value) => value
         case Left(error) =>
           throw new IllegalStateException(s"built-in FNV failed: $error")
@@ -378,9 +423,40 @@ private[tessera] object CanonicalDesign:
       descriptor: DesignDescriptor,
       labels: Vector[Labels]
   )(using algorithm: DigestAlgorithm): Either[DigestError, ContentDigest] =
-    algorithm
-      .digest(designChunks(descriptor, labels).iterator)
+    digestDesign(descriptor, labels, algorithm)
       .map(value => ContentDigest.of(algorithm.id, value))
+
+  def labelsFingerprint(
+      labels: Vector[Labels]
+  )(using algorithm: DigestAlgorithm): Either[DigestError, ContentDigest] =
+    digestLabels(labels, algorithm)
+      .map(value => ContentDigest.of(algorithm.id, value))
+
+  private def digestDesign(
+      descriptor: DesignDescriptor,
+      labels: Vector[Labels],
+      algorithm: DigestAlgorithm
+  ): Either[DigestError, DigestValue] =
+    digestStreaming(algorithm)(writeDesign(descriptor, labels, _))
+
+  private def digestLabels(
+      labels: Vector[Labels],
+      algorithm: DigestAlgorithm
+  ): Either[DigestError, DigestValue] =
+    digestStreaming(algorithm)(writeLabelSet(labels, _))
+
+  private def digestStreaming(
+      algorithm: DigestAlgorithm
+  )(
+      write: CanonicalWriter => Unit
+  ): Either[DigestError, DigestValue] =
+    algorithm.newAccumulator().flatMap { accumulator =>
+      val out = CanonicalWriter.streaming(accumulator.update)
+      write(out)
+      out.error match
+        case Some(error) => Left(error)
+        case None        => accumulator.finish()
+    }
 
   private def writeLabels(labels: Labels, out: CanonicalWriter): Unit =
     out.int(labels.size)

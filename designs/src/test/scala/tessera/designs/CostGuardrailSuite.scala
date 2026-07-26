@@ -115,6 +115,10 @@ final class CostGuardrailSuite extends munit.FunSuite:
           )
       )
     assertEquals(compiled.cost.residentElementsUpperBound, 0L)
+    assertEquals(
+      compiled.cost.receiptWorkPerUnitUpperBound,
+      compiled.cost.workPerUnitUpperBound + delete.toLong
+    )
     assertEquals(compiled.plan.shape.unitCount, count.toInt)
     val last =
       right(
@@ -296,8 +300,28 @@ final class CostGuardrailSuite extends munit.FunSuite:
     )
   }
 
-  test("receipt traversal is explicit, streaming, and not memoized") {
-    given DigestAlgorithm = DigestAlgorithm.fnv1a64
+  test("receipt traversal streams each primitive with constant lag") {
+    var sessions = 0
+    var assignmentUpdates = 0
+    val countingAlgorithm =
+      new DigestAlgorithm:
+        val id: DigestAlgorithmId = DigestAlgorithm.fnv1a64.id
+
+        def newAccumulator(): Either[DigestError, DigestAccumulator] =
+          sessions += 1
+          DigestAlgorithm.fnv1a64.newAccumulator().map { delegate =>
+            val currentSession = sessions
+            new DigestAccumulator:
+              def update(
+                  chunk: IArray[Byte]
+              ): Either[DigestError, Unit] =
+                if currentSession == 2 then assignmentUpdates += 1
+                delegate.update(chunk)
+
+              def finish(): Either[DigestError, DigestValue] =
+                delegate.finish()
+          }
+    given DigestAlgorithm = countingAlgorithm
     var evaluations = 0
     val descriptor =
       DesignDescriptor.unsafe(
@@ -324,7 +348,12 @@ final class CostGuardrailSuite extends munit.FunSuite:
                       value: Int,
                       out: CanonicalWriter
                   ): Either[DigestError, Unit] =
+                    val before = assignmentUpdates
                     out.int(value)
+                    assert(
+                      assignmentUpdates > before,
+                      "canonical output was buffered instead of consumed incrementally"
+                    )
                     Right(())
               )
             yield spec
@@ -343,6 +372,8 @@ final class CostGuardrailSuite extends munit.FunSuite:
       )
     )
     assertEquals(evaluations, 10)
+    assertEquals(sessions, 2)
+    assert(assignmentUpdates > 0)
     assertEquals(right(compiled.plan.at(UnitKey(0, 0))), 0)
     assertEquals(evaluations, 11)
   }

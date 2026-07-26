@@ -146,7 +146,7 @@ private[designs] object DesignSupport:
       repeats: Int,
       allocate: Int => Either[DesignError, FoldPartition],
       diagnostics: Vector[PlanDiagnostics] => PlanDiagnostics =
-        diagnostics => diagnostics.headOption.getOrElse(PlanDiagnostics.empty)
+        aggregatePartitionDiagnostics
   ): Either[DesignError, ExactPartitionSpec] =
     val n = context.space.size
     if folds < 2 then Left(DesignError.TooFewFolds(folds, 2))
@@ -188,6 +188,222 @@ private[designs] object DesignSupport:
       (DiagnosticMetric.MinFoldSize, BigInt(minimum)),
       (DiagnosticMetric.SizeImbalance, BigInt(maximum - minimum))
     )
+
+  def groupedDiagnostics(
+      groups: Labels,
+      folds: Int,
+      observed: Vector[PlanDiagnostics]
+  ): PlanDiagnostics =
+    val base = aggregatePartitionEntries(observed)
+    (
+      exactMinimumGroupImbalance(groups, folds),
+      base
+        .find(_._1 == DiagnosticMetric.SizeImbalance)
+        .map(_._2)
+    ) match
+      case (Some(optimum), Some(achieved)) =>
+        PlanDiagnostics.unsafe(
+          (base ++ Vector(
+            (DiagnosticMetric.Optimum, optimum),
+            (DiagnosticMetric.Regret, achieved - optimum)
+          ))*
+        )
+      case _ => PlanDiagnostics.unsafe(base*)
+
+  def groupedStratifiedDiagnostics(
+      groups: Labels,
+      strata: Labels,
+      folds: Int,
+      observed: Vector[PlanDiagnostics]
+  ): PlanDiagnostics =
+    val entries = Vector.newBuilder[(DiagnosticMetric, BigInt)]
+    val maxMetrics =
+      Vector(
+        DiagnosticMetric.GroupPurityDenominator,
+        DiagnosticMetric.GroupPurityNumerator,
+        DiagnosticMetric.MaxFoldSize,
+        DiagnosticMetric.MaxStratumDeviation,
+        DiagnosticMetric.Objective,
+        DiagnosticMetric.SizeImbalance
+      )
+    maxMetrics.foreach { metric =>
+      val values = observed.flatMap(_.value(metric))
+      if values.nonEmpty then entries += ((metric, values.max))
+    }
+    val minimums =
+      observed.flatMap(_.value(DiagnosticMetric.MinFoldSize))
+    if minimums.nonEmpty then
+      entries += ((DiagnosticMetric.MinFoldSize, minimums.min))
+    if observed.lengthCompare(1) > 0 then
+      entries += ((DiagnosticMetric.Repeats, BigInt(observed.length)))
+    val base = entries.result()
+    (
+      exactMinimumGroupedObjective(groups, strata, folds),
+      base
+        .find(_._1 == DiagnosticMetric.Objective)
+        .map(_._2)
+    ) match
+      case (Some(optimum), Some(achieved)) =>
+        PlanDiagnostics.unsafe(
+          (base ++ Vector(
+            (DiagnosticMetric.Optimum, optimum),
+            (DiagnosticMetric.Regret, achieved - optimum)
+          ))*
+        )
+      case _ => PlanDiagnostics.unsafe(base*)
+
+  private def aggregatePartitionDiagnostics(
+      observed: Vector[PlanDiagnostics]
+  ): PlanDiagnostics =
+    PlanDiagnostics.unsafe(aggregatePartitionEntries(observed)*)
+
+  private def aggregatePartitionEntries(
+      observed: Vector[PlanDiagnostics]
+  ): Vector[(DiagnosticMetric, BigInt)] =
+    val entries = Vector.newBuilder[(DiagnosticMetric, BigInt)]
+    val maximums =
+      observed.flatMap(_.value(DiagnosticMetric.MaxFoldSize))
+    if maximums.nonEmpty then
+      entries += ((DiagnosticMetric.MaxFoldSize, maximums.max))
+    val minimums =
+      observed.flatMap(_.value(DiagnosticMetric.MinFoldSize))
+    if minimums.nonEmpty then
+      entries += ((DiagnosticMetric.MinFoldSize, minimums.min))
+    val imbalances =
+      observed.flatMap(_.value(DiagnosticMetric.SizeImbalance))
+    if imbalances.nonEmpty then
+      entries += ((DiagnosticMetric.SizeImbalance, imbalances.max))
+    if observed.lengthCompare(1) > 0 then
+      entries += ((DiagnosticMetric.Repeats, BigInt(observed.length)))
+    entries.result()
+
+  private val ExactOraclePopulationLimit = 32
+  private val ExactOracleAllocationLimit = 100000L
+
+  private def exactMinimumGroupImbalance(
+      groups: Labels,
+      folds: Int
+  ): Option[BigInt] =
+    if !oracleAvailable(groups.size, groups.cardinality, folds) then None
+    else
+      val members = labelMembers(groups)
+      val loads = Array.fill(folds)(0)
+      val used = Array.fill(folds)(false)
+      var optimum: Option[Int] = None
+
+      def loop(group: Int): Unit =
+        if group == members.length then
+          if used.forall(identity) then
+            val imbalance = loads.max - loads.min
+            if optimum.forall(imbalance < _) then optimum = Some(imbalance)
+        else
+          var fold = 0
+          while fold < folds do
+            val size = members(group).length
+            val wasUsed = used(fold)
+            loads(fold) += size
+            used(fold) = true
+            loop(group + 1)
+            loads(fold) -= size
+            used(fold) = wasUsed
+            fold += 1
+
+      loop(0)
+      optimum.map(BigInt(_))
+
+  private def exactMinimumGroupedObjective(
+      groups: Labels,
+      strata: Labels,
+      folds: Int
+  ): Option[BigInt] =
+    if !oracleAvailable(groups.size, groups.cardinality, folds) then None
+    else
+      val assignment = Array.fill(groups.cardinality)(0)
+      val used = Array.fill(folds)(false)
+      val groupSizes = Array.fill(groups.cardinality)(0)
+      val groupProfiles =
+        Array.fill(groups.cardinality, strata.cardinality)(0)
+      val stratumTotals = Array.fill(strata.cardinality)(0)
+      var row = 0
+      while row < groups.size do
+        val group = groups.unsafeAt(row)
+        val stratum = strata.unsafeAt(row)
+        groupSizes(group) += 1
+        groupProfiles(group)(stratum) += 1
+        stratumTotals(stratum) += 1
+        row += 1
+      val foldSizes = Array.fill(folds)(0)
+      val foldProfiles =
+        Array.fill(folds, strata.cardinality)(0)
+      var optimum: Option[BigInt] = None
+
+      def evaluate(): BigInt =
+        var fold = 0
+        while fold < folds do
+          foldSizes(fold) = 0
+          var stratum = 0
+          while stratum < strata.cardinality do
+            foldProfiles(fold)(stratum) = 0
+            stratum += 1
+          fold += 1
+        var group = 0
+        while group < groups.cardinality do
+          val assignedFold = assignment(group)
+          foldSizes(assignedFold) += groupSizes(group)
+          var stratum = 0
+          while stratum < strata.cardinality do
+            foldProfiles(assignedFold)(stratum) +=
+              groupProfiles(group)(stratum)
+            stratum += 1
+          group += 1
+        var result = BigInt(0)
+        fold = 0
+        while fold < folds do
+          var stratum = 0
+          while stratum < strata.cardinality do
+            result +=
+              BigInt(
+                folds * foldProfiles(fold)(stratum) -
+                  stratumTotals(stratum)
+              ).pow(2)
+            stratum += 1
+          result += BigInt(folds * foldSizes(fold) - groups.size).pow(2)
+          fold += 1
+        result
+
+      def loop(group: Int): Unit =
+        if group == groups.cardinality then
+          if used.forall(identity) then
+            val candidate = evaluate()
+            if optimum.forall(candidate < _) then optimum = Some(candidate)
+        else
+          var fold = 0
+          while fold < folds do
+            val wasUsed = used(fold)
+            assignment(group) = fold
+            used(fold) = true
+            loop(group + 1)
+            used(fold) = wasUsed
+            fold += 1
+
+      loop(0)
+      optimum
+
+  private def oracleAvailable(
+      population: Int,
+      groups: Int,
+      folds: Int
+  ): Boolean =
+    if population > ExactOraclePopulationLimit then false
+    else
+      var count = 1L
+      var group = 0
+      while group < groups && count <= ExactOracleAllocationLimit do
+        if count > ExactOracleAllocationLimit / folds.toLong then
+          count = ExactOracleAllocationLimit + 1L
+        else count *= folds.toLong
+        group += 1
+      count <= ExactOracleAllocationLimit
 
   def plainPartition(
       context: BuildContext,

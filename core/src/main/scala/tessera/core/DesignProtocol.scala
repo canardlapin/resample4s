@@ -493,9 +493,9 @@ trait Design[+A, +Cov <: Coverage]:
   ): Either[DigestError, Option[ContentDigest]] =
     val labels = definition.labelValues
     if labels.nonEmpty then
-        algorithm
-          .digest(CanonicalDesign.labelChunks(labels).iterator)
-          .map(result => Some(ContentDigest.of(algorithm.id, result)))
+        CanonicalDesign
+          .labelsFingerprint(labels)
+          .map(result => Some(result))
     else Right(None)
 
   final def compile(
@@ -506,77 +506,81 @@ trait Design[+A, +Cov <: Coverage]:
     else definition.compile(space, seed)
 
 private[tessera] trait DigestStream:
-  def iterator: Iterator[IArray[Byte]]
-  def error: Option[DigestError]
+  def digest(
+      algorithm: DigestAlgorithm
+  ): Either[DigestError, DigestValue]
 
 private[tessera] final class GeneralDigestStream[A](
     space: IndexSpace,
     plan: Plan[A, ? <: Coverage],
     encoder: CanonicalAssignmentEncoder[A]
 ) extends DigestStream:
-  private var failure: Option[DigestError] = None
-  private val units = plan.iterator
-  private var pending =
-    CanonicalAssignment.header(space, plan.shape).iterator
-
-  val iterator: Iterator[IArray[Byte]] =
-    new Iterator[IArray[Byte]]:
-      def hasNext: Boolean =
-        prepare()
-        pending.hasNext
-
-      def next(): IArray[Byte] =
-        if !hasNext then throw new NoSuchElementException("next on empty iterator")
-        pending.next()
-
-      private def prepare(): Unit =
-        while !pending.hasNext && units.hasNext && failure.isEmpty do
-          val (key, value) = units.next()
-          val writer = new CanonicalWriter()
-          val unit = writer.variant("unit")
-          if unit.isLeft then failure = unit.left.toOption
-          else
-            writer.int(key.repeat)
-            writer.int(key.fold)
-            encoder.encode(value, writer) match
-              case Left(error) => failure = Some(error)
-              case Right(_)    => pending = writer.chunks.iterator
-
-  def error: Option[DigestError] = failure
+  def digest(
+      algorithm: DigestAlgorithm
+  ): Either[DigestError, DigestValue] =
+    algorithm.newAccumulator().flatMap { accumulator =>
+      val writer = CanonicalWriter.streaming(accumulator.update)
+      CanonicalAssignment.writeHeader(space, plan.shape, writer)
+      val units = plan.iterator
+      var failure = writer.error
+      while units.hasNext && failure.isEmpty do
+        val (key, value) = units.next()
+        writer.variantUnchecked("unit")
+        writer.int(key.repeat)
+        writer.int(key.fold)
+        encoder.encode(value, writer) match
+          case Left(error) => failure = Some(error)
+          case Right(_)    => failure = writer.error
+      failure match
+        case Some(error) => Left(error)
+        case None        => accumulator.finish()
+    }
 
 private[tessera] final class ExactDigestStream(
     space: IndexSpace,
     shape: PlanShape,
     partitions: IArray[FoldPartition]
 ) extends DigestStream:
-  val iterator: Iterator[IArray[Byte]] =
-    CanonicalAssignment.header(space, shape).iterator ++
-      partitions.iterator.zipWithIndex.flatMap { (partition, repeat) =>
-        val repeatWriter = new CanonicalWriter()
-        repeatWriter.variantUnchecked("partition")
-        repeatWriter.int(repeat)
-        repeatWriter.beginSequenceUnchecked(partition.populationSize)
-        repeatWriter.chunks.iterator ++
-          (0 until partition.populationSize).iterator.flatMap { index =>
-            val value = new CanonicalWriter()
-            value.int(partition.assignmentUnsafe(index))
-            value.chunks.iterator
-          }
-      }
-
-  val error: Option[DigestError] = None
+  def digest(
+      algorithm: DigestAlgorithm
+  ): Either[DigestError, DigestValue] =
+    algorithm.newAccumulator().flatMap { accumulator =>
+      val writer = CanonicalWriter.streaming(accumulator.update)
+      CanonicalAssignment.writeHeader(space, shape, writer)
+      var repeat = 0
+      while repeat < partitions.length && writer.error.isEmpty do
+        val partition = partitions(repeat)
+        writer.variantUnchecked("partition")
+        writer.int(repeat)
+        writer.beginSequenceUnchecked(partition.populationSize)
+        var index = 0
+        while index < partition.populationSize && writer.error.isEmpty do
+          writer.int(partition.assignmentUnsafe(index))
+          index += 1
+        repeat += 1
+      writer.error match
+        case Some(error) => Left(error)
+        case None        => accumulator.finish()
+    }
 
 private[tessera] object CanonicalAssignment:
   def header(
       space: IndexSpace,
       shape: PlanShape
   ): Vector[IArray[Byte]] =
-    val writer = new CanonicalWriter()
+    val buffer = CanonicalWriter.buffered()
+    writeHeader(space, shape, buffer.writer)
+    buffer.chunks
+
+  def writeHeader(
+      space: IndexSpace,
+      shape: PlanShape,
+      writer: CanonicalWriter
+  ): Unit =
     writer.textUnchecked("tessera/assignment/v1")
     writer.int(space.size)
     writer.int(shape.repeats)
     writer.int(shape.foldsPerRepeat)
-    writer.chunks
 
 /** A validated lazy plan plus diagnostics and explicit work accounting. */
 final class Compiled[+A, +Cov <: Coverage] private (
@@ -595,18 +599,15 @@ final class Compiled[+A, +Cov <: Coverage] private (
       designDigest <- CanonicalDesign.fingerprint(descriptor, labels)
       labelsDigest <-
         if labels.nonEmpty then
-          algorithm
-            .digest(CanonicalDesign.labelChunks(labels).iterator)
-            .map(result => Some(ContentDigest.of(algorithm.id, result)))
+          CanonicalDesign
+            .labelsFingerprint(labels)
+            .map(result => Some(result))
         else Right(None)
       assignmentDigest <-
         val stream = streamFactory()
-        algorithm.digest(stream.iterator).flatMap { result =>
-          stream.error match
-            case Some(error) => Left(error)
-            case None =>
-              Right(ContentDigest.of(algorithm.id, result))
-        }
+        stream
+          .digest(algorithm)
+          .map(result => ContentDigest.of(algorithm.id, result))
     yield new PlanReceipt(
       descriptor.algorithm,
       designDigest,

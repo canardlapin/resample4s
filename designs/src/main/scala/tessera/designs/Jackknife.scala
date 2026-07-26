@@ -85,7 +85,7 @@ private[designs] object DeleteDSupport:
           cost <- PlanCost.of(
             0L,
             workBound(n, delete),
-            delete.toLong
+            receiptWorkBound(n, delete)
           )
           spec <- GeneralPlanSpec.of(
             shape,
@@ -123,7 +123,7 @@ private[designs] object DeleteDSupport:
           cost <- PlanCost.of(
             times.toLong,
             workBound(n, delete),
-            delete.toLong
+            receiptWorkBound(n, delete)
           )
           spec <- GeneralPlanSpec.of(
             shape,
@@ -164,6 +164,10 @@ private[designs] object DeleteDSupport:
     val value =
       BigInt(delete) * BigInt(delete) *
         BigInt(math.max(1, BigInt(n).bitLength))
+    value.min(BigInt(Long.MaxValue)).toLong
+
+  private def receiptWorkBound(n: Int, delete: Int): Long =
+    val value = BigInt(workBound(n, delete)) + BigInt(delete)
     value.min(BigInt(Long.MaxValue)).toLong
 
 private[designs] object Combinations:

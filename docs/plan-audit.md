@@ -33,8 +33,9 @@ green aggregate count is not treated as proof unless the named gate is covered.
 - Generated adversarial properties cover exactness, floor/ceiling
   stratification, oversized-group atomicity, nested composition, and typed
   totality.
-- Small exhaustive allocation oracles produce one-sided grouped and
-  grouped-stratified regret baselines.
+- Exhaustive allocation oracles cover 974 grouped and 4,866
+  grouped-stratified canonical small configurations with one-sided regret
+  baselines, plus a 65,536-allocation frontier fixture.
 - Seeded-priority grouped LPT uses a min-heap. Both the heap and the production
   allocator have deterministic O(g log k) comparison-count guardrails.
 - `examples/NestedCrossValidation.scala` is compiled as a designs test source
@@ -59,10 +60,11 @@ green aggregate count is not treated as proof unless the named gate is covered.
 - Cost guardrails, README, honest-limit Scaladoc, design decisions, CI workflow,
   compatibility policy, type-discipline review, and release-readiness evidence
   exist.
-- The local CI-equivalent test gate passes 32 core, 41 designs, and 8 laws tests
-  on each platform, 243 total.
-- Open: the PLAN-mandated fresh-context independent review is not authorized or
-  waived.
+- The local CI-equivalent test gate passes 33 core, 46 designs, and 8 laws tests
+  on each platform, 261 total.
+- The user-authorized fresh-context review of `3dc2d77` is complete. Its
+  receipt, oracle/diagnostic, and public-law findings were fixed rather than
+  waived; the review and resolutions are recorded under `docs/reviews/`.
 - Open: hosted CI cannot run until a Git remote exists. Local evidence is not
   mislabeled as hosted-CI evidence.
 
