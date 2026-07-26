@@ -36,25 +36,24 @@ final class PermutationDesign private[designs] (
             n.toLong,
             n.toLong
           )
-          spec <- GeneralPlanSpec.of(
-            shape,
-            PlanDiagnostics.empty,
-            cost
-          )(
-            key =>
-              blocks match
-                case None =>
-                  Permutation.fromOwned(
-                    DesignSupport.shuffledIndices(
-                      n,
-                      seeds(key.repeat)
-                    )
+        yield GeneralPlanSpec(
+          shape,
+          PlanDiagnostics.empty,
+          cost
+        )(
+          key =>
+            blocks match
+              case None =>
+                Permutation.fromOwned(
+                  DesignSupport.shuffledIndices(
+                    n,
+                    seeds(key.repeat)
                   )
-                case Some(labels) =>
-                  within(context, labels, key.repeat),
-            CanonicalAssignmentEncoder.permutation
-          )
-        yield spec
+                )
+              case Some(labels) =>
+                within(context, labels, key.repeat),
+          CanonicalAssignmentEncoder.permutation
+        )
     }
 
   private def within(

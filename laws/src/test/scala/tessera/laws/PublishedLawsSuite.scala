@@ -14,7 +14,7 @@ final class PublishedLawsSuite extends munit.FunSuite:
       case Left(error)   => fail(s"expected Right, obtained $error")
 
   private def labels(values: Int*): Labels =
-    right(Labels.dense(ints(values*), values.length))
+    right(Labels.dense(ints(values*)))
 
   private def check(prop: org.scalacheck.Prop): Unit =
     val result = Test.check(Test.Parameters.default, prop)
@@ -142,36 +142,31 @@ final class PublishedLawsSuite extends munit.FunSuite:
     def intDesign(offset: Int): Design[Int, Coverage] =
       val descriptor =
         right(
-          DesignDescriptor.of(
-            right(AlgorithmId.of("law-int-design/v1")),
-            IArray.unsafeFromArray(
-              Array(
-                "offset" -> DescriptorValue.int(offset)
-              )
-            )
+          DesignDescriptor.named(
+            "law-int-design/v1",
+            "offset" -> DescriptorValue.int(offset)
           )
         )
       new Design[Int, Coverage]:
         val definition =
-          DesignDefinition.general(descriptor, None) { _ =>
+          DesignDefinition.general(descriptor) { _ =>
             for
               shape <- PlanShape.of(1, 2)
               cost <- PlanCost.of(0, 1, 1)
-              spec <- GeneralPlanSpec.of(
-                shape,
-                PlanDiagnostics.empty,
-                cost
-              )(
-                key => offset + key.fold,
-                new CanonicalAssignmentEncoder[Int]:
-                  def encode(
-                      value: Int,
-                      out: CanonicalWriter
-                  ): Either[DigestError, Unit] =
-                    out.int(value)
-                    Right(())
-              )
-            yield spec
+            yield GeneralPlanSpec(
+              shape,
+              PlanDiagnostics.empty,
+              cost
+            )(
+              key => offset + key.fold,
+              new CanonicalAssignmentEncoder[Int]:
+                def encode(
+                    value: Int,
+                    out: CanonicalWriter
+                ): Either[DigestError, Unit] =
+                  out.int(value)
+                  Right(())
+            )
           }
 
     val space = right(IndexSpace.of(4))
@@ -242,9 +237,9 @@ final class PublishedLawsSuite extends munit.FunSuite:
     val brokenGenerator =
       new Design[Int, Coverage]:
         val definition =
-          DesignDefinition.general(descriptor, None) { _ =>
-            PlanShape.of(1, 2).flatMap { shape =>
-              GeneralPlanSpec.of(
+          DesignDefinition.general(descriptor) { _ =>
+            PlanShape.of(1, 2).map { shape =>
+              GeneralPlanSpec(
                 shape,
                 PlanDiagnostics.empty,
                 cost
@@ -275,9 +270,9 @@ final class PublishedLawsSuite extends munit.FunSuite:
     val underdeclared =
       new Design[Int, Coverage]:
         val definition =
-          DesignDefinition.general(descriptor, None) { _ =>
-            PlanShape.of(1, 1).flatMap { shape =>
-              GeneralPlanSpec.of(
+          DesignDefinition.general(descriptor) { _ =>
+            PlanShape.of(1, 1).map { shape =>
+              GeneralPlanSpec(
                 shape,
                 PlanDiagnostics.empty,
                 cost
@@ -323,11 +318,11 @@ final class PublishedLawsSuite extends munit.FunSuite:
     val broken =
       new Design[Int, Coverage]:
         val definition =
-          DesignDefinition.general(descriptor, None) { _ =>
+          DesignDefinition.general(descriptor) { _ =>
             for
               shape <- PlanShape.of(1, 1)
               cost <- PlanCost.of(1, 1, 1)
-              spec <- GeneralPlanSpec.of(
+            yield GeneralPlanSpec(
                 shape,
                 PlanDiagnostics.empty,
                 cost
@@ -340,7 +335,6 @@ final class PublishedLawsSuite extends munit.FunSuite:
                   ): Either[DigestError, Unit] =
                     Left(DigestError.ProviderFailure("broken encoder"))
               )
-            yield spec
           }
     val result =
       Test.check(

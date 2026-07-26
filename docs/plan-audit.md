@@ -60,8 +60,8 @@ green aggregate count is not treated as proof unless the named gate is covered.
 - Cost guardrails, README, honest-limit Scaladoc, design decisions, CI workflow,
   compatibility policy, type-discipline review, and release-readiness evidence
   exist.
-- The local CI-equivalent test gate passes 34 core, 47 designs, and 8 laws tests
-  on each platform, 267 total.
+- The local CI-equivalent test gate passes 35 core, 48 designs, and 8 laws tests
+  on each platform, 273 total.
 - The user-authorized fresh-context review of `3dc2d77` is complete. Its
   receipt, oracle/diagnostic, and public-law findings were fixed rather than
   waived; the review and resolutions are recorded under `docs/reviews/`.
@@ -74,6 +74,12 @@ green aggregate count is not treated as proof unless the named gate is covered.
   BigInt-rejection and complete-shuffle differential oracles. The standard
   100,000-row/100-unit Tessera median decreased from 1,248.301 ms to 82.417 ms;
   the refreshed cross-library artifact contract remains green.
+- Public usability probes prove named bootstrap policies expand into the same
+  keys, failures, assignments, cost, diagnostics, fingerprints, and receipts;
+  coverage and abstract-composition compiler diagnostics name the relevant
+  domain types. The primary README path retains `Either`; the focused
+  type-discipline reconciliation is recorded in
+  `docs/reviews/scala-type-discipline-usability-2026-07-26.md`.
 - Open: hosted CI cannot run until a Git remote exists. Local evidence is not
   mislabeled as hosted-CI evidence.
 

@@ -90,6 +90,13 @@ final class DesignProtocolSuite extends munit.FunSuite:
           IArray.unsafeFromArray(fieldSource)
         )
       )
+    val namedDescriptor =
+      right(
+        DesignDescriptor.named(
+          "alias-test/v1",
+          "values" -> sequence
+        )
+      )
     val before =
       right(
         DigestAlgorithm.fnv1a64.digest(
@@ -104,6 +111,14 @@ final class DesignProtocolSuite extends munit.FunSuite:
         )
       )
     assertEquals(before, after)
+    assertEquals(
+      before,
+      right(
+        DigestAlgorithm.fnv1a64.digest(
+          CanonicalDesign.designChunks(namedDescriptor, None).iterator
+        )
+      )
+    )
   }
 
   test("the public SPI supports general and core-certified exact designs") {
@@ -111,12 +126,12 @@ final class DesignProtocolSuite extends munit.FunSuite:
     val seed = Seed.fromLong(17L)
 
     val general: Compiled[Int, Coverage] =
-      right(new PublicGeneralDesign(4).compile(space, seed))
+      right(right(PublicGeneralDesign.of(4)).compile(space, seed))
     assertEquals(general.plan.shape, right(PlanShape.of(1, 3)))
     assertEquals(right(general.plan.at(UnitKey(0, 2))), 23)
 
     val exact: Compiled[Split[Selection], Coverage.Exact] =
-      right(new PublicExactDesign().compile(space, seed))
+      right(right(PublicExactDesign.of()).compile(space, seed))
     val assessments =
       exact.plan.iterator.map(_._2.assessment).toVector
     val seen = Array.fill(space.size)(0)
@@ -140,12 +155,9 @@ final class DesignProtocolSuite extends munit.FunSuite:
       """
 import tessera.core.*
 val descriptor =
-  DesignDescriptor.of(
-    AlgorithmId.of("forgery/v1").toOption.get,
-    IArray.unsafeFromArray(Array.empty[(String, DescriptorValue)])
-  ).toOption.get
+  DesignDescriptor.named("forgery/v1").toOption.get
 val forged: DesignDefinition[Int, Coverage.Exact] =
-  DesignDefinition.general[Int](descriptor, None)(_ =>
+  DesignDefinition.general[Int](descriptor)(_ =>
     throw new RuntimeException("not evaluated")
   )
 """
@@ -165,7 +177,7 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
         )
       )
     val exactDefinition =
-      DesignDefinition.exactOncePartitions(descriptor, None) { _ =>
+      DesignDefinition.exactOncePartitions(descriptor) { _ =>
         val assignments = ints(0, 1, 0, 1)
         val partition =
           right(FoldPartition.fromAssignments(4, 2, assignments))
@@ -191,7 +203,7 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
     given DigestAlgorithm = DigestAlgorithm.fnv1a64
     val space = right(IndexSpace.of(5))
     val population = summary(5)
-    val originalDesign = new PublicGeneralDesign(10)
+    val originalDesign = right(PublicGeneralDesign.of(10))
     val compiled = right(originalDesign.compile(space, Seed.fromLong(3L)))
     val receipt = right(compiled.receipt(population))
 
@@ -201,7 +213,7 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
       Left(ReceiptError.Mismatch(ReceiptComponent.Population))
     )
     assertEquals(
-      receipt.verify(new PublicGeneralDesign(11), space, population),
+      receipt.verify(right(PublicGeneralDesign.of(11)), space, population),
       Left(ReceiptError.Mismatch(ReceiptComponent.Design))
     )
     assertEquals(
@@ -217,8 +229,8 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
     val space = right(IndexSpace.of(4))
     val firstLabels = right(Labels.dense(ints(0, 1, 0, 1), 4))
     val secondLabels = right(Labels.dense(ints(0, 0, 1, 1), 4))
-    val firstDesign = new PublicExactDesign(Some(firstLabels))
-    val secondDesign = new PublicExactDesign(Some(secondLabels))
+    val firstDesign = right(PublicExactDesign.of(Some(firstLabels)))
+    val secondDesign = right(PublicExactDesign.of(Some(secondLabels)))
     val receipt =
       right(
         right(firstDesign.compile(space, Seed.fromLong(1L)))
@@ -233,7 +245,7 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
   test("seed-independent receipts verify when only the stored seed changes") {
     given DigestAlgorithm = DigestAlgorithm.fnv1a64
     val space = right(IndexSpace.of(4))
-    val design = new PublicExactDesign()
+    val design = right(PublicExactDesign.of())
     val receipt =
       right(
         right(design.compile(space, Seed.fromLong(1L))).receipt(summary(4))
@@ -248,7 +260,7 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
 
   test("an open 128-bit provider changes audit bytes, not randomization") {
     val space = right(IndexSpace.of(5))
-    val design = new PublicGeneralDesign(2)
+    val design = right(PublicGeneralDesign.of(2))
     val firstCompiled = right(design.compile(space, Seed.fromLong(8L)))
     val keyBefore = design.randomizationKey.value
     val planBefore = firstCompiled.plan.materialize.map(_._2)
@@ -307,7 +319,7 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
                   fail("a failed accumulator must not be finished")
             )
 
-    val design = new PublicGeneralDesign(3)
+    val design = right(PublicGeneralDesign.of(3))
     val compiled =
       right(
         design.compile(
@@ -360,17 +372,16 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
     ): Design[Split[Selection], Coverage] =
       new Design[Split[Selection], Coverage]:
         val definition =
-          DesignDefinition.general(descriptor, None) { _ =>
+          DesignDefinition.general(descriptor) { _ =>
             val split = right(Split.of(selection, selection.complement))
             for
               shape <- PlanShape.of(1, 1)
               cost <- PlanCost.of(4, 1, 4)
-              spec <- GeneralPlanSpec.of(
-                shape,
-                PlanDiagnostics.empty,
-                cost
-              )(_ => split, CanonicalAssignmentEncoder.selectionSplit)
-            yield spec
+            yield GeneralPlanSpec(
+              shape,
+              PlanDiagnostics.empty,
+              cost
+            )(_ => split, CanonicalAssignmentEncoder.selectionSplit)
           }
 
     val assignmentDigests =

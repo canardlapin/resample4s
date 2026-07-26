@@ -2,54 +2,45 @@ package tessera.consumer
 
 import tessera.core.*
 
-final class PublicGeneralDesign(offset: Int)
-    extends Design[Int, Coverage]:
-  private val descriptor =
-    DesignDescriptor
-      .of(
-        AlgorithmId.of("public-general/v1").toOption.get,
-        IArray.unsafeFromArray(
-          Array[(String, DescriptorValue)](
-            ("offset", DescriptorValue.int(offset))
-          )
-        )
-      )
-      .toOption
-      .get
-
+final class PublicGeneralDesign private (
+    offset: Int,
+    descriptor: DesignDescriptor
+) extends Design[Int, Coverage]:
   val definition: DesignDefinition[Int, Coverage] =
-    DesignDefinition.general(descriptor, None) { context =>
+    DesignDefinition.general(descriptor) { context =>
       for
         shape <- PlanShape.of(1, 3)
         cost <- PlanCost.of(3, 1, 1)
-        spec <- GeneralPlanSpec.of(
-          shape,
-          PlanDiagnostics.empty,
-          cost
-        )(
-          key =>
-            context.seed.value.toInt + offset + key.fold,
-          new CanonicalAssignmentEncoder[Int]:
-            def encode(
-                value: Int,
-                out: CanonicalWriter
-            ): Either[DigestError, Unit] =
-              out.int(value)
-              Right(())
-        )
-      yield spec
-    }
-final class PublicExactDesign(
-    designLabels: Option[Labels] = None
-) extends Design[Split[Selection], Coverage.Exact]:
-  private val descriptor =
-    DesignDescriptor
-      .of(
-        AlgorithmId.of("public-exact/v1").toOption.get,
-        IArray.unsafeFromArray(Array.empty[(String, DescriptorValue)])
+      yield GeneralPlanSpec(
+        shape,
+        PlanDiagnostics.empty,
+        cost
+      )(
+        key =>
+          context.seed.value.toInt + offset + key.fold,
+        new CanonicalAssignmentEncoder[Int]:
+          def encode(
+              value: Int,
+              out: CanonicalWriter
+          ): Either[DigestError, Unit] =
+            out.int(value)
+            Right(())
       )
-      .toOption
-      .get
+    }
+
+object PublicGeneralDesign:
+  def of(offset: Int): Either[DesignError, PublicGeneralDesign] =
+    DesignDescriptor
+      .named(
+        "public-general/v1",
+        "offset" -> DescriptorValue.int(offset)
+      )
+      .map(descriptor => new PublicGeneralDesign(offset, descriptor))
+
+final class PublicExactDesign private (
+    designLabels: Option[Labels],
+    descriptor: DesignDescriptor
+) extends Design[Split[Selection], Coverage.Exact]:
 
   val definition
       : DesignDefinition[Split[Selection], Coverage.Exact] =
@@ -68,3 +59,11 @@ final class PublicExactDesign(
             )
           }
     }
+
+object PublicExactDesign:
+  def of(
+      designLabels: Option[Labels] = None
+  ): Either[DesignError, PublicExactDesign] =
+    DesignDescriptor
+      .named("public-exact/v1")
+      .map(descriptor => new PublicExactDesign(designLabels, descriptor))

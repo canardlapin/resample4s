@@ -252,7 +252,7 @@ final class CataloguePropertySuite extends munit.ScalaCheckSuite:
             compiled.plan.keys.forall(key => compiled.plan.at(key).isRight)
 
       assert(total(KFold(folds).compile(space, seed)))
-      assert(total(Bootstrap(times).compile(space, seed)))
+      assert(total(Bootstrap.redrawing(times).compile(space, seed)))
       assert(total(PermutationDesign(times).compile(space, seed)))
       assert(
         total(

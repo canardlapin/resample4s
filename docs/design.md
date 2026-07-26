@@ -112,6 +112,13 @@ maintainers need when changing code.
     the named prefix set is fixed and emits its two sorted roles by membership
     scan. BigInt-oracle, complete-shuffle differential, golden-fixture, and
     semantic-parity tests jointly guard the change.
+35. Public convenience APIs are admitted only as exact expansions of the core
+    algebra. Bootstrap policy is named at the call site; no bare constructor
+    silently selects redraw. Descriptor, no-label definition, general-plan, and
+    label-size conveniences remove only proof already carried by validated
+    values. Expansion tests compare keys, errors, assignments, cost,
+    diagnostics, fingerprints, and receipts, while compiler probes keep
+    capability failures expressed in domain terms.
 
 ## Evidence policy
 
@@ -129,5 +136,8 @@ The implementation-context type-discipline review is recorded under
 `docs/reviews/`. The user-authorized fresh-context review examined commit
 `3dc2d77` and found receipt-streaming/cost, exhaustive-oracle/diagnostic, and
 published-law gaps. Decisions 30–32 are the remediation; the independent
-review is not self-approved or waived. Hosted CI still cannot be green until
-the repository has a remote, so no stable release tag may yet be created.
+review is not self-approved or waived. The public-usability reconciliation is
+recorded in
+`docs/reviews/scala-type-discipline-usability-2026-07-26.md`. Hosted CI still
+cannot be green until the repository has a remote, so no stable release tag
+may yet be created.

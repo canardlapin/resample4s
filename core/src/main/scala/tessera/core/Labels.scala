@@ -43,6 +43,13 @@ final class Labels private (
     hash
 
 object Labels:
+  /** Validates already-dense codes using their known array length. */
+  def of(
+      codes: IArray[Int],
+      cardinality: Int
+  ): Either[DesignError, Labels] =
+    of(codes, cardinality, codes.length)
+
   def of(
       codes: IArray[Int],
       cardinality: Int,
@@ -85,6 +92,10 @@ object Labels:
                 owned(index) = recode(codes(index))
                 index += 1
               Right(new Labels(IArray.unsafeFromArray(owned), cardinality))
+
+  /** Canonically recodes arbitrary integer labels using their array length. */
+  def dense(codes: IArray[Int]): Either[DesignError, Labels] =
+    dense(codes, codes.length)
 
   def dense(codes: IArray[Int], n: Int): Either[DesignError, Labels] =
     if codes.length != n then Left(DesignError.LengthMismatch(n, codes.length))

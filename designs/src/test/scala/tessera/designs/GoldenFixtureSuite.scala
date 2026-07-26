@@ -12,7 +12,7 @@ final class GoldenFixtureSuite extends munit.FunSuite:
       case Left(error)   => fail(s"expected Right, obtained $error")
 
   private def labels(values: Int*): Labels =
-    right(Labels.dense(ints(values*), values.length))
+    right(Labels.dense(ints(values*)))
 
   private def vector(value: Reindexing): Vector[Int] =
     Vector.tabulate(value.domain)(index => value.at(index).toOption.get)

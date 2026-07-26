@@ -2,6 +2,7 @@ package tessera.core
 
 import org.scalacheck.Gen
 import org.scalacheck.Prop.forAll
+import scala.compiletime.testing.typeCheckErrors
 
 final class AlgebraSuite extends munit.ScalaCheckSuite:
   private def ints(values: Int*): IArray[Int] =
@@ -76,6 +77,21 @@ final class AlgebraSuite extends munit.ScalaCheckSuite:
     assertEquals(
       selection.after(right(Selection.from(ints(0), right(IndexSpace.of(4))))),
       Left(DomainMismatch(3, 4))
+    )
+  }
+
+  test("abstract composition reports how to retain the concrete result type") {
+    val errors = typeCheckErrors(
+      """import tessera.core.*
+def invalid(left: Reindexing, right: Reindexing) =
+  left.after(right)
+"""
+    )
+    assertEquals(errors.length, 1)
+    assert(
+      errors.head.message.contains(
+        "Keep both values typed as Draw, Injection, Selection, or Permutation"
+      )
     )
   }
 

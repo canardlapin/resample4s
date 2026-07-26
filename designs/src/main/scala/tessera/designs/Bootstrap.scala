@@ -25,7 +25,7 @@ final class Bootstrap private[designs] (
     )
 
   val definition: DesignDefinition[Split[Draw], Coverage] =
-    DesignDefinition.general(descriptor, None) { context =>
+    DesignDefinition.general(descriptor) { context =>
       BootstrapSupport.ordinary(context, times, policy)
     }
 
@@ -51,18 +51,60 @@ final class GroupedBootstrap private[designs] (
     }
 
 object Bootstrap:
+  /** General constructor with an explicit empty-OOB policy. */
   def apply(
       times: Int,
-      policy: OobPolicy = OobPolicy.Redraw(8)
+      policy: OobPolicy
   ): Bootstrap =
     new Bootstrap(times, policy)
 
+  /** Unconditional bootstrap; an empty OOB assessment is permitted. */
+  def unconditional(times: Int): Bootstrap =
+    apply(times, OobPolicy.Allow)
+
+  /** Bootstrap conditioned on finding a non-empty OOB assessment. */
+  def redrawing(
+      times: Int,
+      maxAttempts: Int = 8
+  ): Bootstrap =
+    apply(times, OobPolicy.Redraw(maxAttempts))
+
+  /** Bootstrap that fails compilation when a draw has empty OOB. */
+  def failOnEmptyOob(times: Int): Bootstrap =
+    apply(times, OobPolicy.Fail)
+
+  /** General whole-group constructor with an explicit empty-OOB policy. */
   def grouped(
       times: Int,
       groups: Labels,
-      policy: OobPolicy = OobPolicy.Redraw(8)
+      policy: OobPolicy
+  ): GroupedBootstrap =
+    GroupedBootstrap(times, groups, policy)
+
+object GroupedBootstrap:
+  /** General constructor with an explicit empty-OOB policy. */
+  def apply(
+      times: Int,
+      groups: Labels,
+      policy: OobPolicy
   ): GroupedBootstrap =
     new GroupedBootstrap(times, groups, policy)
+
+  /** Unconditional whole-group bootstrap; empty OOB is permitted. */
+  def unconditional(times: Int, groups: Labels): GroupedBootstrap =
+    apply(times, groups, OobPolicy.Allow)
+
+  /** Whole-group bootstrap conditioned on finding non-empty OOB. */
+  def redrawing(
+      times: Int,
+      groups: Labels,
+      maxAttempts: Int = 8
+  ): GroupedBootstrap =
+    apply(times, groups, OobPolicy.Redraw(maxAttempts))
+
+  /** Whole-group bootstrap that fails compilation on empty OOB. */
+  def failOnEmptyOob(times: Int, groups: Labels): GroupedBootstrap =
+    apply(times, groups, OobPolicy.Fail)
 
 private[designs] trait BootstrapWorkObserver:
   def candidate(unit: UnitKey): Unit
@@ -118,15 +160,14 @@ private[designs] object BootstrapSupport:
             n.toLong,
             n.toLong
           )
-          spec <- GeneralPlanSpec.of(
-            shape,
-            PlanDiagnostics.empty,
-            cost
-          )(
-            key => ordinarySplit(n, seeds(key.repeat)),
-            CanonicalAssignmentEncoder.drawSplit
-          )
-        yield spec
+        yield GeneralPlanSpec(
+          shape,
+          PlanDiagnostics.empty,
+          cost
+        )(
+          key => ordinarySplit(n, seeds(key.repeat)),
+          CanonicalAssignmentEncoder.drawSplit
+        )
       }
     }
 
@@ -168,22 +209,21 @@ private[designs] object BootstrapSupport:
               groupCount.toLong + groupCount.toLong * maximum.toLong,
               groupCount.toLong + groupCount.toLong * maximum.toLong
             )
-            spec <- GeneralPlanSpec.of(
-              shape,
-              PlanDiagnostics.empty,
-              cost
-            )(
-              key =>
-                groupedSplit(
-                  groups,
-                  members,
-                  key,
-                  seeds(key.repeat),
-                  observer
-                ),
-              CanonicalAssignmentEncoder.drawSplit
-            )
-          yield spec
+          yield GeneralPlanSpec(
+            shape,
+            PlanDiagnostics.empty,
+            cost
+          )(
+            key =>
+              groupedSplit(
+                groups,
+                members,
+                key,
+                seeds(key.repeat),
+                observer
+              ),
+            CanonicalAssignmentEncoder.drawSplit
+          )
         }
       }
     }

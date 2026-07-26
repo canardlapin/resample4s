@@ -314,6 +314,20 @@ final class DesignDescriptor private (
     }
 
 object DesignDescriptor:
+  /** Validates a schema id and its fields in one typed construction step. */
+  def named(
+      algorithm: String,
+      fields: (String, DescriptorValue)*
+  ): Either[DesignError, DesignDescriptor] =
+    AlgorithmId.of(algorithm).flatMap { id =>
+      val values = new Array[(String, DescriptorValue)](fields.length)
+      var index = 0
+      while index < fields.length do
+        values(index) = fields(index)
+        index += 1
+      of(id, IArray.unsafeFromArray(values))
+    }
+
   def of(
       algorithm: AlgorithmId,
       fields: IArray[(String, DescriptorValue)]

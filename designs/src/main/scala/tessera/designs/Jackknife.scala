@@ -9,7 +9,7 @@ final class DeleteOneJackknife private[designs] ()
 
   val definition
       : DesignDefinition[Split[Selection], Coverage.ExactOnce] =
-    DesignDefinition.exactOncePartitions(descriptor, None) { context =>
+    DesignDefinition.exactOncePartitions(descriptor) { context =>
       val n = context.space.size
       if n < 2 then Left(DesignError.DegenerateSplit(n, 1))
       else
@@ -33,7 +33,7 @@ final class ExhaustiveDeleteD private[designs] (
     )
 
   val definition: DesignDefinition[Split[Selection], Coverage] =
-    DesignDefinition.general(descriptor, None) { context =>
+    DesignDefinition.general(descriptor) { context =>
       DeleteDSupport.exhaustive(context, delete, budget)
     }
 
@@ -49,7 +49,7 @@ final class SampledDeleteD private[designs] (
     )
 
   val definition: DesignDefinition[Split[Selection], Coverage] =
-    DesignDefinition.general(descriptor, None) { context =>
+    DesignDefinition.general(descriptor) { context =>
       DeleteDSupport.sampled(context, delete, times)
     }
 
@@ -87,15 +87,14 @@ private[designs] object DeleteDSupport:
             workBound(n, delete),
             receiptWorkBound(n, delete)
           )
-          spec <- GeneralPlanSpec.of(
-            shape,
-            PlanDiagnostics.empty,
-            cost
-          )(
-            key => split(n, delete, BigInt(key.fold)),
-            CanonicalAssignmentEncoder.assessmentOnlySplit
-          )
-        yield spec
+        yield GeneralPlanSpec(
+          shape,
+          PlanDiagnostics.empty,
+          cost
+        )(
+          key => split(n, delete, BigInt(key.fold)),
+          CanonicalAssignmentEncoder.assessmentOnlySplit
+        )
     }
 
   def sampled(
@@ -125,21 +124,20 @@ private[designs] object DeleteDSupport:
             workBound(n, delete),
             receiptWorkBound(n, delete)
           )
-          spec <- GeneralPlanSpec.of(
-            shape,
-            PlanDiagnostics.empty,
-            cost
-          )(
-            key =>
-              val rank =
-                Rand
-                  .fromSeed(seeds(key.repeat))
-                  .nextBigIntBoundedUnsafe(count)
-                  ._2
-              split(n, delete, rank),
-            CanonicalAssignmentEncoder.assessmentOnlySplit
-          )
-        yield spec
+        yield GeneralPlanSpec(
+          shape,
+          PlanDiagnostics.empty,
+          cost
+        )(
+          key =>
+            val rank =
+              Rand
+                .fromSeed(seeds(key.repeat))
+                .nextBigIntBoundedUnsafe(count)
+                ._2
+            split(n, delete, rank),
+          CanonicalAssignmentEncoder.assessmentOnlySplit
+        )
     }
 
   private def validateDelete(

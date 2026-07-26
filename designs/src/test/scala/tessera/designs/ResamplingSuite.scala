@@ -15,7 +15,81 @@ final class ResamplingSuite extends munit.FunSuite:
     Vector.tabulate(value.domain)(index => value.at(index).toOption.get)
 
   private def labels(values: Int*): Labels =
-    right(Labels.dense(ints(values*), values.length))
+    right(Labels.dense(ints(values*)))
+
+  test("named bootstrap policies exactly expand to the explicit policy route") {
+    given DigestAlgorithm = DigestAlgorithm.fnv1a64
+
+    val space = right(IndexSpace.of(8))
+    val seed = Seed.fromLong(41L)
+    val population = right(Summary.of("tessera/size", space.size.toLong))
+    val groups = labels(10, 10, 20, 20, 30, 30, 40, 40)
+
+    def verify(
+        named: Design[Split[Draw], Coverage],
+        explicit: Design[Split[Draw], Coverage]
+    ): Unit =
+      assertEquals(named.randomizationKey.value, explicit.randomizationKey.value)
+      assertEquals(named.fingerprint, explicit.fingerprint)
+      (named.compile(space, seed), explicit.compile(space, seed)) match
+        case (Left(namedError), Left(explicitError)) =>
+          assertEquals(namedError, explicitError)
+        case (Right(namedCompiled), Right(explicitCompiled)) =>
+          assertEquals(
+            namedCompiled.plan.materialize,
+            explicitCompiled.plan.materialize
+          )
+          assertEquals(namedCompiled.diagnostics, explicitCompiled.diagnostics)
+          assertEquals(
+            (
+              namedCompiled.cost.residentElementsUpperBound,
+              namedCompiled.cost.workPerUnitUpperBound,
+              namedCompiled.cost.receiptWorkPerUnitUpperBound
+            ),
+            (
+              explicitCompiled.cost.residentElementsUpperBound,
+              explicitCompiled.cost.workPerUnitUpperBound,
+              explicitCompiled.cost.receiptWorkPerUnitUpperBound
+            )
+          )
+          assertEquals(
+            namedCompiled.receipt(population),
+            explicitCompiled.receipt(population)
+          )
+        case (namedResult, explicitResult) =>
+          fail(s"expansion diverged: $namedResult versus $explicitResult")
+
+    Vector(
+      (
+        Bootstrap.unconditional(3),
+        Bootstrap(3, OobPolicy.Allow)
+      ),
+      (
+        Bootstrap.redrawing(3),
+        Bootstrap(3, OobPolicy.Redraw(8))
+      ),
+      (
+        Bootstrap.redrawing(3, maxAttempts = 5),
+        Bootstrap(3, OobPolicy.Redraw(5))
+      ),
+      (
+        Bootstrap.failOnEmptyOob(3),
+        Bootstrap(3, OobPolicy.Fail)
+      ),
+      (
+        GroupedBootstrap.unconditional(3, groups),
+        Bootstrap.grouped(3, groups, OobPolicy.Allow)
+      ),
+      (
+        GroupedBootstrap.redrawing(3, groups),
+        Bootstrap.grouped(3, groups, OobPolicy.Redraw(8))
+      ),
+      (
+        GroupedBootstrap.failOnEmptyOob(3, groups),
+        Bootstrap.grouped(3, groups, OobPolicy.Fail)
+      )
+    ).foreach((named, explicit) => verify(named, explicit))
+  }
 
   test("ordinary bootstrap emits exactly n ordered draws and exact OOB") {
     val n = 12
@@ -85,7 +159,7 @@ final class ResamplingSuite extends munit.FunSuite:
     )
   }
 
-  test("Allow is unbiased for n=1 while the default policy exhausts") {
+  test("Allow is unbiased for n=1 while redrawing exhausts") {
     val space = right(IndexSpace.of(1))
     val allowed =
       right(
@@ -97,7 +171,7 @@ final class ResamplingSuite extends munit.FunSuite:
       0
     )
     assertEquals(
-      Bootstrap(1).compile(space, Seed.fromLong(0L)),
+      Bootstrap.redrawing(1).compile(space, Seed.fromLong(0L)),
       Left(DesignError.EmptyOutOfBag(UnitKey(0, 0), 8))
     )
   }
@@ -480,7 +554,7 @@ final class ResamplingSuite extends munit.FunSuite:
     val space = right(IndexSpace.of(5))
     val seed = Seed.fromLong(0L)
     assertEquals(
-      Bootstrap(0).compile(space, seed),
+      Bootstrap.redrawing(0).compile(space, seed),
       Left(DesignError.InvalidTimes(0))
     )
     assertEquals(

@@ -276,7 +276,7 @@ final class Holdout private[designs] (
     )
 
   val definition: DesignDefinition[Split[Selection], Coverage] =
-    DesignDefinition.general(descriptor, None) { context =>
+    DesignDefinition.general(descriptor) { context =>
       ShuffleSplitSupport.spec(
         context,
         fraction,
@@ -311,7 +311,7 @@ final class MonteCarlo private[designs] (
     )
 
   val definition: DesignDefinition[Split[Selection], Coverage] =
-    DesignDefinition.general(descriptor, None) { context =>
+    DesignDefinition.general(descriptor) { context =>
       ShuffleSplitSupport.spec(
         context,
         fraction,
@@ -347,26 +347,25 @@ private[designs] object ShuffleSplitSupport:
       for
         shape <- PlanShape.of(times, 1)
         cost <- PlanCost.of(times.toLong, n.toLong, n.toLong)
-        result <-
-          val seeds =
-            Array.tabulate(times)(repeat =>
-              context.derive(
-                DesignSupport.childPath(
-                  repeat,
-                  StreamDomain.Unit,
-                  repeat
-                )
+      yield
+        val seeds =
+          Array.tabulate(times)(repeat =>
+            context.derive(
+              DesignSupport.childPath(
+                repeat,
+                StreamDomain.Unit,
+                repeat
               )
             )
-          GeneralPlanSpec.of(
-            shape,
-            PlanDiagnostics.empty,
-            cost
-          )(
-            key => split(n, namedSize, role, seeds(key.repeat)),
-            CanonicalAssignmentEncoder.selectionSplit
           )
-      yield result
+        GeneralPlanSpec(
+          shape,
+          PlanDiagnostics.empty,
+          cost
+        )(
+          key => split(n, namedSize, role, seeds(key.repeat)),
+          CanonicalAssignmentEncoder.selectionSplit
+        )
 
   private def split(
       n: Int,
@@ -433,7 +432,7 @@ final class LeaveOneOut private ()
 
   val definition
       : DesignDefinition[Split[Selection], Coverage.ExactOnce] =
-    DesignDefinition.exactOncePartitions(descriptor, None) { context =>
+    DesignDefinition.exactOncePartitions(descriptor) { context =>
       val n = context.space.size
       if n < 2 then Left(DesignError.DegenerateSplit(n, 1))
       else

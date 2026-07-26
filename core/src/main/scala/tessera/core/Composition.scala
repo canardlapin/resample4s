@@ -1,5 +1,11 @@
 package tessera.core
 
+import scala.annotation.implicitNotFound
+
+@implicitNotFound(
+  "Cannot preserve the concrete result of composing ${F} after ${G}. " +
+    "Keep both values typed as Draw, Injection, Selection, or Permutation."
+)
 trait Compose[F <: Reindexing, G <: Reindexing]:
   type Out <: Reindexing
   private[tessera] def compose(left: F, right: G): Out

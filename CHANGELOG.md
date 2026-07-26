@@ -38,6 +38,13 @@ Initial cross-platform release candidate.
 
 ### Changed
 
+- Bootstrap no longer chooses a redraw policy through a bare constructor.
+  Ordinary and grouped bootstrap expose named unconditional, redrawing, and
+  fail-on-empty-OOB presets plus an explicit-policy route. Public descriptor,
+  no-label design-definition, general-plan, and label conveniences remove
+  redundant proof plumbing while expanding exactly into the same typed algebra.
+- The README's primary example retains `Either`, and compile-time usability
+  probes lock coverage and abstract-composition diagnostics.
 - Monte Carlo and holdout now use an exact-equivalent partial Fisher–Yates
   kernel plus a linear canonical-role scan. Bounded `Int` draws use primitive
   unsigned rejection arithmetic instead of allocating `BigInt` operands.

@@ -21,8 +21,8 @@ resampling artifact.
 | Bootstrap | An ordered, length-*n* draw with replacement and an increasing OOB complement. |
 
 Tessera uses `OobPolicy.Allow` in these benchmarks. This matches rsample's
-unconditional bootstrap distribution. Tessera's default redraw-conditioned
-policy would be a different statistical operation.
+unconditional bootstrap distribution. Tessera's named `redrawing` route would
+be a different statistical operation.
 
 Non-bootstrap comparator outputs are sorted inside the timed region. This is
 necessary because Tessera's `Selection` promises increasing ordinals, while

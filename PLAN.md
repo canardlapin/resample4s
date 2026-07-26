@@ -1,8 +1,8 @@
 # Tessera — Execution Plan
 
-Companion to `PRD.md` (v0.9). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
+Companion to `PRD.md` (v0.10). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
 
-Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, the phase-4 fresh-context assurance review, the semantic-parity Python/R benchmark tranche, and exact-equivalent Monte Carlo/RNG kernel profiling (PRD §12 D24–D28).
+Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, the phase-4 fresh-context assurance review, the semantic-parity Python/R benchmark tranche, exact-equivalent Monte Carlo/RNG kernel profiling, and the public-surface usability pass (PRD §12 D24–D29).
 
 ## Phase 0 — Bootstrap (small)
 
@@ -45,7 +45,7 @@ This phase is larger than v0.1's phase 1 by design: `Design` and `Labels` are co
 
 Independent of phase 2 once phase 1 lands (both need only `Design`/`Labels`/`Plan`); the two can interleave.
 
-- `Bootstrap(times)` performs exactly `n` uniform row draws per unit. `Bootstrap.grouped` performs exactly `g` uniform canonical-group draws per unit and emits each chosen group's rows in canonical order, producing variable row length `L` (PRD §§4.6/4.10). Reject `g.toLong * m_max > Int.MaxValue` before plan construction rather than risking a late oversized `Draw` or conditioning the distribution. Both compile to `Plan[Split[Draw], Coverage]` with OOB assessment and explicit `OobPolicy` (default `Redraw(8)`). `Fail`/`Redraw` candidate generation occurs during compilation; accepted child seeds make subsequent lazy access total.
+- `Bootstrap` and `GroupedBootstrap` expose named `unconditional`, `redrawing`, and `failOnEmptyOob` constructors plus a general explicit-policy route. Ordinary bootstrap performs exactly `n` uniform row draws per unit; grouped bootstrap performs exactly `g` uniform canonical-group draws and emits each chosen group's rows in canonical order, producing variable row length `L` (PRD §§4.6/4.10). Reject `g.toLong * m_max > Int.MaxValue` before plan construction rather than risking a late oversized `Draw` or conditioning the distribution. Both compile to `Plan[Split[Draw], Coverage]`; no bare constructor silently chooses an OOB distributional policy. `Fail`/`Redraw` candidate generation occurs during compilation; accepted child seeds make subsequent lazy access total.
 - `Jackknife.delete1`; `Jackknife.deleteD.exhaustive(d, budget)` for `2 ≤ d < n` via lexicographic combinatorial unranking; `Jackknife.deleteD.sampled(d, times)` via uniform `BigInt` ranks into that same ordering. Both use an O(d) assessment plus `ComplementOf`; sampled duplicates are allowed, and `d = 1` is directed to the exactly covered `delete1` constructor.
 - `PermutationDesign(times)` uses per-unit Fisher–Yates; `within(blocks, times)` independently shuffles canonical members back into each block's positions. Identity and duplicate permutations are allowed and asserted to be allowed.
 - Laws 7, 8, and the built-in-design portion of law 15 (multiset **and order** preservation, OOB complement, block-preserving permutations, total generation/canonical encoding).
@@ -68,6 +68,12 @@ Independent of phase 2 once phase 1 lands (both need only `Design`/`Labels`/`Pla
   paths require differential oracles against their literal definitions,
   unchanged golden fixtures on JVM/JS/Native, and refreshed semantic-parity
   evidence. A timing improvement without seed identity is a failed gate.
+- **Public usability checks:** named policy presets must expand exactly into the
+  explicit-policy algebra, including keys, failures, assignments, cost,
+  diagnostics, fingerprints, and receipts. Compile-time probes lock the
+  `Exact`/`ExactOnce` and abstract-composition diagnostics; the README's first
+  copyable program retains the typed error channel. Consumer SPI fixtures use
+  no package-private access or impossible error branches.
 - **Independent review pass:** fresh-context subagent review of the whole public surface against PRD principles P1–P7 (plus `/scala-type-discipline` on the diff); fix findings. Do not self-approve.
 
 **Gate:** CI green including cost guardrails and benchmark protocol tests;

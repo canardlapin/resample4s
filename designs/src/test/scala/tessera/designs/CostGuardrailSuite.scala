@@ -331,32 +331,31 @@ final class CostGuardrailSuite extends munit.FunSuite:
     val design =
       new Design[Int, Coverage]:
         val definition =
-          DesignDefinition.general(descriptor, None) { _ =>
+          DesignDefinition.general(descriptor) { _ =>
             for
               shape <- PlanShape.of(10, 1)
               cost <- PlanCost.of(0, 1, 1)
-              spec <- GeneralPlanSpec.of(
-                shape,
-                PlanDiagnostics.empty,
-                cost
-              )(
-                key =>
-                  evaluations += 1
-                  key.repeat,
-                new CanonicalAssignmentEncoder[Int]:
-                  def encode(
-                      value: Int,
-                      out: CanonicalWriter
-                  ): Either[DigestError, Unit] =
-                    val before = assignmentUpdates
-                    out.int(value)
-                    assert(
-                      assignmentUpdates > before,
-                      "canonical output was buffered instead of consumed incrementally"
-                    )
-                    Right(())
-              )
-            yield spec
+            yield GeneralPlanSpec(
+              shape,
+              PlanDiagnostics.empty,
+              cost
+            )(
+              key =>
+                evaluations += 1
+                key.repeat,
+              new CanonicalAssignmentEncoder[Int]:
+                def encode(
+                    value: Int,
+                    out: CanonicalWriter
+                ): Either[DigestError, Unit] =
+                  val before = assignmentUpdates
+                  out.int(value)
+                  assert(
+                    assignmentUpdates > before,
+                    "canonical output was buffered instead of consumed incrementally"
+                  )
+                  Right(())
+            )
           }
     val compiled =
       right(

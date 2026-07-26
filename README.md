@@ -21,7 +21,7 @@ reason nested cross-validation cannot reach an outer assessment fold.
 
 This repository is currently `0.1.0-SNAPSHOT`. The fresh-context review and
 Alder integration gates are complete; the public surface is not frozen until
-the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.9;
+the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.10;
 rolling-origin/time-series designs are explicitly deferred.
 
 ## Example
@@ -30,24 +30,25 @@ rolling-origin/time-series designs are explicitly deferred.
 import tessera.core.*
 import tessera.designs.*
 
-val space = IndexSpace.of(120).toOption.get
-val outer = KFold(5).compile(space, Seed.fromLong(42L)).toOption.get.plan
+def firstNestedAssessment(
+    outerSplit: Split[Selection]
+): Either[DesignError | DomainMismatch, Selection] =
+  for
+    innerSpace <- IndexSpace.of(outerSplit.analysis.domain)
+    inner <- KFold(4).compile(innerSpace, Seed.fromLong(99L))
+    embedded <- outerSplit.analysis.after(inner.plan.first.assessment)
+  yield embedded
 
-outer.iterator.foreach { (_, outerSplit) =>
-  val innerSpace = IndexSpace.of(outerSplit.analysis.domain).toOption.get
-  val inner =
-    KFold(4).compile(innerSpace, Seed.fromLong(99L)).toOption.get.plan
+val embeddedAssessment =
+  for
+    space <- IndexSpace.of(120)
+    outer <- KFold(5).compile(space, Seed.fromLong(42L))
+    embedded <- firstNestedAssessment(outer.plan.first)
+  yield embedded
 
-  inner.iterator.foreach { (_, innerSplit) =>
-    val embeddedAssessment =
-      outerSplit.analysis.after(innerSplit.assessment).toOption.get
-    // embeddedAssessment is statically a Selection over the original space.
-  }
-}
+// embeddedAssessment is an Either whose successful value is statically a
+// Selection over the original space.
 ```
-
-Production code should retain the `Either` error channel rather than use the
-compact `.toOption.get` presentation style above.
 
 The complete, cross-platform-compiled version is
 [`examples/NestedCrossValidation.scala`](examples/NestedCrossValidation.scala).

@@ -2,7 +2,7 @@
 
 **A pure, typed algebra of finite reindexings, partitions, and reproducible randomized designs.**
 
-- Status: proposal v0.9 (performance-hardened release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, semantic-parity Python/R benchmarks, and exact-equivalent Monte Carlo/RNG kernel profiling (see §12 decision log)
+- Status: proposal v0.10 (usability-hardened release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, semantic-parity Python/R benchmarks, exact-equivalent Monte Carlo/RNG kernel profiling, and a public-surface usability pass (see §12 decision log)
 - Working name: `tessera` (a tessera is one tile of a mosaic — the library partitions a population into tiles). Treated as settled unless vetoed.
 - Repo: `~/code/scala/tessera`, sibling to `alder` (consumer) and `gale` (unrelated at the dependency level)
 - Supersedes: `~/code/scala/resample4s/resample4s.md` (2026-07-23 design doc — broader, Frame4s-coupled conception; tessera is its data-agnostic core, extracted)
@@ -211,12 +211,19 @@ object DescriptorValue:
   def variant(tag: String, value: DescriptorValue): Either[DesignError, DescriptorValue]
 
 object DesignDescriptor:
+  def named(
+    algorithm: String,
+    fields: (String, DescriptorValue)*): Either[DesignError, DesignDescriptor]
   def of(
     algorithm: AlgorithmId,
     fields: IArray[(String, DescriptorValue)]): Either[DesignError, DesignDescriptor]
   // validates field names, rejects duplicates, sorts by UTF-8 field-name bytes, and owns all inputs
 
 object DesignDefinition:
+  def general[A](
+    descriptor: DesignDescriptor)(
+    build: BuildContext => Either[DesignError, GeneralPlanSpec[A]])
+    : DesignDefinition[A, Coverage]
   def general[A](
     descriptor: DesignDescriptor,
     labels: Option[Labels])(
@@ -236,12 +243,12 @@ trait CanonicalAssignmentEncoder[-A]:
   // CanonicalWriter exposes only the framed scalar/sequence/sum primitives from §4.7
 
 object GeneralPlanSpec:
-  def of[A](
+  def apply[A](
     shape: PlanShape,
     diagnostics: PlanDiagnostics,
     cost: PlanCost)(
     unit: UnitKey => A,
-    encoder: CanonicalAssignmentEncoder[A]): Either[DesignError, GeneralPlanSpec[A]]
+    encoder: CanonicalAssignmentEncoder[A]): GeneralPlanSpec[A]
 
 object ExactPartitionSpec:
   def of(
@@ -250,11 +257,13 @@ object ExactPartitionSpec:
 
 final class Labels private (...)                        // groups or strata over I_n
 object Labels:
+  def of(codes: IArray[Int], cardinality: Int): Either[DesignError, Labels]
   def of(codes: IArray[Int], cardinality: Int, n: Int): Either[DesignError, Labels]
   // validates: codes.length == n; every code in [0, cardinality); cardinality >= 1;
   //            every declared code occurs; defensive copy (IArray may alias a mutable Array)
   // canonicalizes equivalence classes to 0..cardinality-1 by ascending minimum member ordinal
-  // Labels.dense(codes, n) additionally accepts sparse/arbitrary input codes before canonicalizing
+  // Labels.dense(codes) accepts sparse/arbitrary input codes and infers n;
+  // Labels.dense(codes, n) additionally checks an externally expected size
 ```
 
 The consumer (alder) turns `row => row.site` into `Labels`; tessera never sees the function. Typed errors, not silent degradation, for infeasible configurations — and §4.6 fixes exactly *which* configurations are infeasible, because "oversized group" and "stratum too small" turn out not to be.
@@ -265,7 +274,7 @@ Label-bearing designs take one or more `Labels` values as design parameters, not
 
 `BuildContext` exposes only the validated `IndexSpace`, design-owned canonical labels, seed, fixed `DesignKey`, and §4.4 child-stream derivation; it has no clock, audit-digest provider, or mutable global registry. A custom implementation may compute purely from those values but earns the cross-platform claim only by passing the published JVM/JS/Native conformance bundle.
 
-`DesignDefinition.general` is the route for arbitrary/custom plans and can produce only `Coverage`. Its `GeneralPlanSpec` contains a validated shape, a total deterministic unit generator, diagnostics, a concrete non-negative `PlanCost` upper-bound declaration for that compilation, and a `CanonicalAssignmentEncoder[A]` that can write only the framed primitives of §4.7. Core frames `IndexSpace.size`, the plan shape, and each `UnitKey` around the consumer's value encoding, so population-size drift or reordering equal-looking units cannot alias a receipt. Every condition that could fail must be preflighted by `build`; the unit generator cannot return `Either` or throw on a valid key. `GeneralPlanSpec.of` rejects invalid shapes/costs before a plan exists. The published conformance laws check replay, totality over every declared key, shape, counted output/encoding work, backing-independent encoding, and single-unit perturbation sensitivity. Arbitrary consumer computation remains a declared-and-tested obligation—core cannot prove the CPU complexity of an opaque function. A custom compact encoder is likewise an explicit capability claim: it must uniquely determine the public artifact or fail the conformance suite.
+`DesignDefinition.general` is the route for arbitrary/custom plans and can produce only `Coverage`. Its `GeneralPlanSpec` contains a validated shape, a total deterministic unit generator, diagnostics, a concrete non-negative `PlanCost` upper-bound declaration for that compilation, and a `CanonicalAssignmentEncoder[A]` that can write only the framed primitives of §4.7. Core frames `IndexSpace.size`, the plan shape, and each `UnitKey` around the consumer's value encoding, so population-size drift or reordering equal-looking units cannot alias a receipt. Every condition that could fail must be preflighted by `build`; the unit generator cannot return `Either` or throw on a valid key. Because `PlanShape`, `PlanDiagnostics`, and `PlanCost` are already validated values, `GeneralPlanSpec(...)` is total and does not add an impossible error branch. The published conformance laws check replay, totality over every declared key, shape, counted output/encoding work, backing-independent encoding, and single-unit perturbation sensitivity. Arbitrary consumer computation remains a declared-and-tested obligation—core cannot prove the CPU complexity of an opaque function. A custom compact encoder is likewise an explicit capability claim: it must uniquely determine the public artifact or fail the conformance suite.
 
 `DesignDefinition.exactPartitions` is the **only public route to `Coverage.Exact`**. Its `ExactPartitionSpec` supplies a non-empty, defensively owned sequence with one validated `FoldPartition` per repeat; every partition must have the same population and fold count. Core derives every analysis/assessment split, exact coverage witness, lazy plan, cost declaration, and canonical assignment encoding. Consumers cannot assert `Exact` with a phantom type, arbitrary generator, or custom encoder. `Plan`, `Compiled`, `GeneralPlanSpec`, and `ExactPartitionSpec` retain private constructors and expose only validated factories, so the SPI makes extension possible without making coverage forgeable.
 
@@ -307,7 +316,7 @@ Strata are processed by descending member count, ties broken by ascending smalle
 - For the same bounded small frontier (`n ≤ 32` and `k^g ≤ 100000`), compilation reports the true minimum `J*` and additive regret; outside it those two diagnostics are absent. Repeated designs retain the worst achieved objective/regret while preserving the exact optimum and other worst-case diagnostics.
 - Verification strategy: exhaustive allocation oracles over every canonical label partition at `n ≤ 5` (and grouped-only partitions through `n ≤ 6`), each legal `k ≤ 3`, compute the true optimum independently. The quality measure is non-negative additive regret `Jheuristic − J*`, which remains defined when `J* = 0`. Regression thresholds are one-sided: larger regret can fail; smaller regret is always accepted.
 
-**Grouped bootstrap** (`Bootstrap.grouped(times, groups)`):
+**Grouped bootstrap** (`Bootstrap.grouped(times, groups, policy)`):
 - Let `g` be the number of groups. Each unit samples **exactly `g` group ids independently and uniformly with replacement** from the canonical group order. A group drawn *j* times contributes all of its rows *j* times, in ascending member-ordinal order on each occurrence; the order of group draws remains observable in the resulting `Draw`.
 - Let `m_min` and `m_max` be the smallest and largest group sizes. The row-level analysis length is variable: `L = Σ_draw |group(draw)|`, with `g·m_min ≤ L ≤ g·m_max` and `E[L] = n`. The generator records the drawn-class bitset while emitting rows; `Draw.support` is the corresponding `LabelClasses` view and out-of-bag is its ascending complement, neither expanded at split construction. The expected OOB fraction of both groups and rows under `OobPolicy.Allow` is exactly `(1 − 1/g)^g`, even when group sizes differ.
 - Empty-OOB policy is evaluated at the group-support level using §4.9. Duplicate group draws are legal and are never removed.
@@ -394,8 +403,8 @@ Normative, and guarded by allocation and work-accounting tests (§6.4) rather th
 | `Holdout`, `MonteCarlo(t)` | `1`, `t` | O(t) child seeds | O(n) regeneration |
 | `LeaveOneOut` | `n` | **O(1)** — implicit identity partition | O(1) view; O(n) materialized |
 | `LeaveOneGroupOut` | `#groups` | O(n) | O(1) view |
-| `Bootstrap(t)` | `t` | **O(t)** child seeds | O(n) regeneration |
-| `Bootstrap.grouped(t, groups)` | `t` | O(n + t) labels + child seeds | O(g + L) lazy split; +O(n) if OOB materialized |
+| `Bootstrap(t, policy)` | `t` | **O(t)** child seeds | O(n) regeneration |
+| `Bootstrap.grouped(t, groups, policy)` | `t` | O(n + t) labels + child seeds | O(g + L) lazy split; +O(n) if OOB materialized |
 | `Jackknife.delete1` | `n` | **O(1)** | O(1) view |
 | `Jackknife.deleteD.exhaustive(d)` | `C(n,d)` | **O(1)** — combinatorial unranking | O(U(n,d) + d) view; +O(n) if analysis materialized |
 | `Jackknife.deleteD.sampled(d, t)` | `t` | O(t) child seeds | O(M(n) + U(n,d) + d) view |
@@ -457,13 +466,19 @@ MonteCarlo.assessing(f, times)  /  MonteCarlo.analyzing(f, times)
 ```
 The derived assessment size must satisfy `0 < size < n`; otherwise `DesignError.DegenerateSplit(n, size)`.
 
-**Empty out-of-bag.** For small `n`, a bootstrap draw has positive probability of covering the whole population; each particular row's omission probability is `(1 − 1/n)^n → e⁻¹`, so neither OOB behavior nor the full-coverage event may be waved away with an asymptotic slogan. Policy is an explicit parameter, defaulting to bounded redraw:
+**Empty out-of-bag.** For small `n`, a bootstrap draw has positive probability of covering the whole population; each particular row's omission probability is `(1 − 1/n)^n → e⁻¹`, so neither OOB behavior nor the full-coverage event may be waved away with an asymptotic slogan. Policy is always explicit, either through the general constructor or a named preset:
 ```scala
 enum OobPolicy:
   case Allow                      // empty assessment permitted; the Split ctor admits it for Draw analyses
-  case Redraw(maxAttempts: Int)   // default Redraw(8); deterministic seed advance per attempt
+  case Redraw(maxAttempts: Int)   // deterministic seed advance per attempt
   case Fail
+
+Bootstrap.unconditional(times)
+Bootstrap.redrawing(times, maxAttempts = 8)
+Bootstrap.failOnEmptyOob(times)
+Bootstrap(times, policy)          // general explicit route
 ```
+`GroupedBootstrap` exposes the same three named presets; `Bootstrap.grouped(times, groups, policy)` is its general explicit route. No bare bootstrap constructor chooses a distributional policy silently.
 `Redraw` exhausting its attempts is `DesignError.EmptyOutOfBag(unit, attempts)`. **Redrawing conditions the draw distribution on non-empty OOB and therefore biases it** at small `n`; this is documented at the constructor and in the Scaladoc, not buried. `Allow` is the unbiased choice and exists for callers who can handle an empty assessment.
 
 For `Fail` and `Redraw`, policy evaluation happens during `Design.compile`. `Redraw(maxAttempts)` counts the initial candidate as attempt 1 and requires `maxAttempts >= 1`. Compilation stores the accepted child seed, and lazy `Plan.at` later regenerates that already-validated draw. Thus an empty-OOB policy can never surface as an untyped or late access failure.
@@ -509,7 +524,7 @@ This section closes the remaining catalogue-level ambiguity. “Random” below 
 
 **Ordinary and grouped bootstrap.**
 
-- `Bootstrap(times)` has shape `(times, 1)`. Each unit makes exactly `n` independent uniform draws from `[0, n)` using bounded rejection sampling. Their generation order is the analysis `Draw`; assessment is the ascending complement of its support.
+- `Bootstrap(times, policy)` and its named presets have shape `(times, 1)`. Each unit makes exactly `n` independent uniform draws from `[0, n)` using bounded rejection sampling. Their generation order is the analysis `Draw`; assessment is the ascending complement of its support.
 - `Bootstrap.grouped` uses the exactly-`g` whole-group procedure in §4.6, not `n` group draws and not a second within-group stage.
 - `OobPolicy.Allow`, `Fail`, and `Redraw` change only candidate acceptance as specified in §4.9. Attempt 1 uses the unit stream; later attempts derive `(RedrawAttempt, attempt - 1)` beneath it. No policy sorts, deduplicates, or otherwise changes an accepted draw.
 
@@ -538,7 +553,7 @@ v0.1 (ordered by dependency). The `Cov` column is the type-level coverage capabi
 | `KFold.groupedStratified(k, g, s)` | 〃 | **`ExactOnce`** | atomicity absolute; balance best-effort, diagnosed |
 | `.repeat(r)` combinator | shape `(r, k)` | **`Exact`** | drops `ExactOnce`; independent child streams (§4.10) |
 | `LeaveOneOut` / `LeaveOneGroupOut` | 〃 | **`ExactOnce`** | degenerate KFold; O(1) state (§4.8) |
-| `Bootstrap(t)` / `.grouped(t, g)` | `Plan[Split[Draw], Coverage]` | `Coverage` | assessment = OOB; grouped draws exactly `g` whole clusters (§4.6) |
+| `Bootstrap` / `GroupedBootstrap` policy presets | `Plan[Split[Draw], Coverage]` | `Coverage` | policy named; assessment = OOB; grouped draws exactly `g` whole clusters (§4.6) |
 | `Jackknife.delete1` | `Plan[Split[Selection], _]` | **`ExactOnce`** | |
 | `Jackknife.deleteD.exhaustive/sampled` | 〃 | `Coverage` | unit budget enforced (§4.8) |
 | `PermutationDesign(t)` | `Plan[Permutation, Coverage]` | `Coverage` | free shuffle; duplicates allowed |
@@ -610,7 +625,7 @@ assignments.
 Non-bootstrap comparator roles are sorted inside the timed region so the
 observable artifact matches Tessera's increasing `Selection`. Bootstrap retains
 draw order and uses `OobPolicy.Allow`, which matches an unconditional n-of-n
-bootstrap rather than Tessera's redraw-conditioned default. Grouped-stratified
+bootstrap rather than the distinct redraw-conditioned policy. Grouped-stratified
 timings are reported with the common integer objective `J`; a faster but much
 worse allocation is not represented as an unqualified win.
 
@@ -702,7 +717,7 @@ Resolutions from three independent review passes on 2026-07-25, beginning with P
 | **D9** | Phase 5 slipping blocks the **surface freeze**, not development: without it, tessera tags `0.1.0-M1` with no MiMa baseline and an explicitly unfrozen surface. | v0.1 said both "phase 5 feeds corrections back before tagging" and "phase 5 can slip without blocking tessera". Those are incompatible; separating *tag* from *freeze* satisfies both intentions. |
 | **D10** | Rolling-origin is **post-v0.1, unconditionally**, and PLAN phase 6 no longer offers it as an option. | The PRD deferred it and the plan conditionally included it. It is also the alder D19 counterexample, so it is more useful as the thing `Coverage` was designed against than as a rushed v0.1 addition. |
 | **D11** | Seed sensitivity and OOB fraction move from **laws to a calibrated statistical suite** (§6.2), with the exact finite-*n* expectation `(1 − 1/n)^n`; golden fixtures are declared compatibility locks and never sole evidence (§6.3). | "Different seeds ⇒ different assignments" is false pairwise on a finite output space and false by construction for LOO-class designs. `e⁻¹` is a limit, not the expectation — at n=10 the true value is ~5% lower. |
-| **D12** | Fractions are **exact rationals** with integer round-half-up; `Holdout`/`MonteCarlo` name their role at the constructor (`.assessing`/`.analyzing`); empty-OOB policy is an explicit `OobPolicy` defaulting to bounded redraw, with the resulting distributional bias documented. | Each was an unstated default where the plausible reading is silently wrong; naming beats documenting. Round-half-up in integer arithmetic also keeps P3's no-floating-point rule intact. |
+| **D12** | Fractions are **exact rationals** with integer round-half-up; `Holdout`/`MonteCarlo` name their role at the constructor (`.assessing`/`.analyzing`); empty-OOB policy is an explicit `OobPolicy`, with redraw's distributional bias documented. | Each was an unstated choice where the plausible reading is silently wrong; naming beats documenting. Round-half-up in integer arithmetic also keeps P3's no-floating-point rule intact. |
 | **D13** | Digesting is an **open capability**: `DigestAlgorithm` has a validated id and consumes canonical chunks; `DigestValue` owns arbitrary-length bytes. Receipt design/labels/assignment fields require `ContentDigest`, while population retains the full policy-tagged `Fingerprint` union. | v0.2 called a closed enum plus a `Long` an extension point, but that representation could neither name consumer algorithms nor hold a cryptographic digest. Arbitrary bytes permit real adapters without adding a tessera runtime dependency. |
 | **D14** | Lazy plans have **no late design failures**. Compilation preflights every fallible unit-generation policy and stores accepted child seeds; `Compiled.receipt` is a separate streaming traversal with an explicit work contract. | v0.2 allowed bounded OOB redraw to fail while `Plan.at` could report only `UnknownUnit`, and it did not account for hashing a lazy plan. Resolving fallible generation before plan construction preserves total access without hiding receipt work inside compilation. |
 | **D15** | Grouped and grouped-stratified designs use **seeded, recoding-invariant tie-breaking**: `Labels` are canonically recoded by minimum member ordinal, a fixed internal `DesignKey` separates RNG from audit-digest choice, size buckets retain LPT order, equal-size groups are shuffled by canonical bucket streams, and equal-cost folds use a seed-derived priority permutation. Repeated units may still collide. | v0.2's canonical order and smallest-fold tie-break never read the seed, so `.repeat(r)` produced identical grouped partitions while claiming independent child streams. Canonical label storage plus domain-separated seed paths preserves recoding invariance through randomization, while the separate key prevents a consumer-selected receipt algorithm from changing assignments. |
@@ -719,3 +734,4 @@ Resolutions from three independent review passes on 2026-07-25, beginning with P
 | **D26** | The published law module exposes full label-recoding equivalence (owned labels, randomization key, fingerprints, and compiled assignments) and bootstrap order/multiplicity preservation through composition. | The catalogue tests covered these universal claims, but the consumer-facing bundle exposed only weaker assignment equivalence and single-plan bootstrap semantics. The release surface now matches laws 7 and 12 rather than relying on internal evidence. |
 | **D27** | Cross-language benchmarks compare one canonical public artifact, not similarly named constructors: every accepted timing cell first proves the same fixture and semantic contract; canonical sorting, complete materialization, and linear consumption occur inside the timer. Grouped-stratified quality accompanies time, and rsample's public-object lane is separated from index-kernel comparators. | Constructor-only races would reward laziness or eager allocation arbitrarily, Python-level checksum loops would measure the harness, redraw-conditioned and unconditional bootstrap are different distributions, and grouped heuristics can trade quality for speed. The parity protocol makes different algorithms and structures comparable without pretending they are identical. |
 | **D28** | `Int`-bounded rejection uses primitive unsigned 64-bit arithmetic, and shuffle-split stops once the named prefix set is fixed before emitting both sorted roles with one membership scan. Both kernels must remain exactly equivalent to the previous `BigInt` rejection and complete Fisher–Yates-plus-sort definitions for every seed. | JFR showed `BigInt` division/allocation and dual array sorting dominated Monte Carlo. The optimized kernels remove representation work without changing random words, accepted draws, child-stream state, role membership, golden fixtures, or the public O(n) per-unit contract. |
+| **D29** | Public ergonomics must preserve the same algebra and guarantees. Bootstrap exposes named `unconditional`, `redrawing`, and `failOnEmptyOob` policy presets instead of a silent default; convenience constructors for descriptors, no-label definitions, and labels expand exactly into the validated core; `GeneralPlanSpec` is total once its components are validated; compiler-diagnostic and expansion-equivalence probes join the release gate. | The pre-freeze usability review found that policy was consequential but hidden, while callers transported redundant `None`, array-length, descriptor, and impossible-error proof plumbing. Exact conveniences make common valid programs direct without widening coverage, erasing errors, duplicating semantics, or changing receipts. |

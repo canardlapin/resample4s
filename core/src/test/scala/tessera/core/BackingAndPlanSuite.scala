@@ -158,15 +158,24 @@ final class BackingAndPlanSuite extends munit.FunSuite:
 
   test("labels canonicalize by minimum ordinal and own their source") {
     val source = Array(8, 3, 8, 5, 3)
-    val labels = right(Labels.dense(IArray.unsafeFromArray(source), 5))
+    val input = IArray.unsafeFromArray(source)
+    val labels = right(Labels.dense(input))
+    val explicitSize = right(Labels.dense(input, input.length))
     source(0) = 3
 
+    assertEquals(labels, explicitSize)
     assertEquals(labels.cardinality, 3)
     assertEquals(
       Vector.tabulate(labels.size)(index => labels.at(index).toOption.get),
       Vector(0, 1, 0, 2, 1)
     )
-    val recoded = right(Labels.dense(ints(100, -4, 100, 9, -4), 5))
+    val recoded = right(Labels.dense(ints(100, -4, 100, 9, -4)))
     assertEquals(labels, recoded)
     assertEquals(labels.hashCode(), recoded.hashCode())
+
+    val denseCodes = ints(0, 1, 0, 2, 1)
+    assertEquals(
+      Labels.of(denseCodes, 3),
+      Labels.of(denseCodes, 3, denseCodes.length)
+    )
   }

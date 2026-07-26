@@ -215,15 +215,16 @@ final class GeneralPlanSpec[A] private (
 )
 
 object GeneralPlanSpec:
-  def of[A](
+  /** Builds a general plan specification from already-validated components. */
+  def apply[A](
       shape: PlanShape,
       diagnostics: PlanDiagnostics,
       cost: PlanCost
   )(
       unit: UnitKey => A,
       encoder: CanonicalAssignmentEncoder[A]
-  ): Either[DesignError, GeneralPlanSpec[A]] =
-    Right(new GeneralPlanSpec(shape, diagnostics, cost, unit, encoder))
+  ): GeneralPlanSpec[A] =
+    new GeneralPlanSpec(shape, diagnostics, cost, unit, encoder)
 
 final class ExactPartitionSpec private (
     private[tessera] val partitions: IArray[FoldPartition],
@@ -320,6 +321,13 @@ final class DesignDefinition[+A, +Cov <: Coverage] private (
 
 object DesignDefinition:
   def general[A](
+      descriptor: DesignDescriptor
+  )(
+      build: BuildContext => Either[DesignError, GeneralPlanSpec[A]]
+  ): DesignDefinition[A, Coverage] =
+    general(descriptor, None)(build)
+
+  def general[A](
       descriptor: DesignDescriptor,
       labels: Option[Labels]
   )(
@@ -365,6 +373,13 @@ object DesignDefinition:
     )
 
   def exactPartitions(
+      descriptor: DesignDescriptor
+  )(
+      build: BuildContext => Either[DesignError, ExactPartitionSpec]
+  ): DesignDefinition[Split[Selection], Coverage.Exact] =
+    exactPartitions(descriptor, None)(build)
+
+  def exactPartitions(
       descriptor: DesignDescriptor,
       labels: Option[Labels]
   )(
@@ -387,6 +402,13 @@ object DesignDefinition:
       Vector.tabulate(labels.length)(labels(_)),
       requireSingleRepeat = false
     )(build)
+
+  def exactOncePartitions(
+      descriptor: DesignDescriptor
+  )(
+      build: BuildContext => Either[DesignError, ExactPartitionSpec]
+  ): DesignDefinition[Split[Selection], Coverage.ExactOnce] =
+    exactOncePartitions(descriptor, None)(build)
 
   def exactOncePartitions(
       descriptor: DesignDescriptor,

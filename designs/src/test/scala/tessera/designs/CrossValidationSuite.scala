@@ -49,7 +49,7 @@ final class CrossValidationSuite extends munit.FunSuite:
       repeat += 1
 
   private def labels(values: Int*): Labels =
-    right(Labels.dense(ints(values*), values.length))
+    right(Labels.dense(ints(values*)))
 
   test("plain K-fold is exact, balanced, replayable, and repeatable") {
     val n = 11
@@ -109,6 +109,9 @@ def illegal(
 """
     )
     assert(errors.nonEmpty)
+    val message = errors.map(_.message).mkString("\n")
+    assert(message.contains("Coverage.Exact"))
+    assert(message.contains("Coverage.ExactOnce"))
   }
 
   test("stratified K-fold obeys the per-stratum floor/ceiling law") {
