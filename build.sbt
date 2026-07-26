@@ -150,3 +150,11 @@ addCommandAlias(
     "lawsJS/mimaReportBinaryIssues;lawsJS/tastyMiMaReportIssues;" +
     "lawsNative/mimaReportBinaryIssues;lawsNative/tastyMiMaReportIssues"
 )
+
+addCommandAlias(
+  "publishLocalAll",
+  ";coreJVM/publishLocal;coreJS/publishLocal;coreNative/publishLocal;" +
+    "designsJVM/publishLocal;designsJS/publishLocal;" +
+    "designsNative/publishLocal;" +
+    "lawsJVM/publishLocal;lawsJS/publishLocal;lawsNative/publishLocal"
+)

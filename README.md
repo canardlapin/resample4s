@@ -101,6 +101,8 @@ Run the full local gate with:
 
 ```text
 sbt testAll
+sbt compatibilityAll
+sbt publishLocalAll
 ```
 
 The build uses Scala 3.3.8 with fatal warnings, strict equality, explicit nulls,
