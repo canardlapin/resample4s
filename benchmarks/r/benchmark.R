@@ -1,4 +1,4 @@
-protocol <- "tessera-benchmark/v1"
+protocol <- "resample4s-benchmark/v1"
 modulus <- 2147483647
 benchmark_seed <- 20260726L
 

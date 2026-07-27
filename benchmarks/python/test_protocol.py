@@ -65,7 +65,7 @@ class ProtocolTest(unittest.TestCase):
         if not all(path.exists() for path in paths):
             self.skipTest("smoke result files have not been generated")
         rows = [row.copy() for row in load(paths)]
-        target = next(row for row in rows if row["library"] != "tessera")
+        target = next(row for row in rows if row["library"] != "resample4s")
         target["n"] = str(int(target["n"]) + 1)
         with self.assertRaisesRegex(ValueError, "disagree on n"):
             validate_comparison(rows)

@@ -14,8 +14,8 @@ import alder.linear.*
 import alder.metrics.*
 import alder.tuning.*
 import alder.resampling.*
-import tessera.*
-import tessera.designs.*
+import resample4s.*
+import resample4s.designs.*
 // ---------------------------------------------------------------------------
 // 1. Data
 // ---------------------------------------------------------------------------

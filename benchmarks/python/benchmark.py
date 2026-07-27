@@ -23,7 +23,7 @@ from sklearn.model_selection import (
 )
 
 
-PROTOCOL = "tessera-benchmark/v1"
+PROTOCOL = "resample4s-benchmark/v1"
 MODULUS = 2_147_483_647
 BENCHMARK_SEED = 20_260_726
 HEADER = [

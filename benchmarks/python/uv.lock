@@ -76,7 +76,7 @@ wheels = [
 ]
 
 [[package]]
-name = "tessera-benchmark-python"
+name = "resample4s-benchmark-python"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -55,9 +55,9 @@ jobs:
 
       - name: Run comparison
         run: |
-          ./benchmarks/run.sh "$PROFILE" 2 5 "$RUNNER_TEMP/tessera-benchmark"
+          ./benchmarks/run.sh "$PROFILE" 2 5 "$RUNNER_TEMP/resample4s-benchmark"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tessera-benchmark-${{ env.PROFILE }}
-          path: ${{ runner.temp }}/tessera-benchmark
+          name: resample4s-benchmark-${{ env.PROFILE }}
+          path: ${{ runner.temp }}/resample4s-benchmark

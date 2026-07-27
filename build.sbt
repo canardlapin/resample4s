@@ -67,7 +67,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(testSettings)
   .settings(compatibilitySettings)
   .settings(
-    name := "tessera-core"
+    name := "resample4s-core"
   )
 
 lazy val coreJVM    = core.jvm
@@ -82,7 +82,7 @@ lazy val designs = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(testSettings)
   .settings(compatibilitySettings)
   .settings(
-    name := "tessera-designs",
+    name := "resample4s-designs",
     Test / unmanagedSources +=
       file("examples/NestedCrossValidation.scala")
   )
@@ -99,7 +99,7 @@ lazy val laws = crossProject(JVMPlatform, JSPlatform, NativePlatform)
   .settings(testSettings)
   .settings(compatibilitySettings)
   .settings(
-    name := "tessera-laws",
+    name := "resample4s-laws",
     libraryDependencies +=
       "org.scalacheck" %%% "scalacheck" % scalacheckV
   )
@@ -113,7 +113,7 @@ lazy val benchmarks = project
   .dependsOn(designsJVM)
   .settings(strictSettings)
   .settings(
-    name           := "tessera-benchmarks",
+    name           := "resample4s-benchmarks",
     publish / skip := true,
     libraryDependencies +=
       "org.scalameta" %% "munit" % munitV % Test
@@ -134,7 +134,7 @@ lazy val root = project
     benchmarks
   )
   .settings(
-    name           := "tessera",
+    name           := "resample4s",
     publish / skip := true
   )
 
@@ -176,7 +176,7 @@ addCommandAlias(
 addCommandAlias(
   "benchmarkCheck",
   ";benchmarks/test;benchmarks/runMain " +
-    "tessera.benchmarks.BenchmarkMain " +
+    "resample4s.benchmarks.BenchmarkMain " +
     "--manifest benchmarks/cases.csv --profile smoke " +
     "--warmup 1 --measure 1 " +
     "--output benchmarks/scala/target/scala-smoke.csv"

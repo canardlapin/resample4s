@@ -17,7 +17,7 @@ A pure, typed algebra of finite reindexings, partitions, and reproducible random
 
 Cross-validation, bootstrapping, subsampling, jackknifing, and row permutations all arise from this substrate. They should nevertheless remain distinct higher-level artifacts, because each carries additional laws.
 
-I will use tessera as a working package name below, without treating the name as settled.
+I will use resample4s as a working package name below, without treating the name as settled.
 
 ⸻
 

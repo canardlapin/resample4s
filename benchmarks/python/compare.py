@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-PROTOCOL = "tessera-benchmark/v1"
+PROTOCOL = "resample4s-benchmark/v1"
 
 
 def parse_integer(value: str) -> int:
@@ -33,7 +33,7 @@ class Aggregate:
     fixture_checksum: int
     quality_primary: int
     quality_secondary: int
-    relative_to_tessera: float
+    relative_to_resample4s: float
 
 
 def load(paths: list[Path]) -> list[dict[str, str]]:
@@ -68,8 +68,8 @@ def validate(rows: list[dict[str, str]]) -> None:
         by_case[row["case_id"]].append(row)
     for case_id, case_rows in by_case.items():
         libraries = {row["library"] for row in case_rows}
-        if "tessera" not in libraries:
-            raise ValueError(f"{case_id} has no Tessera baseline")
+        if "resample4s" not in libraries:
+            raise ValueError(f"{case_id} has no Resample4s baseline")
         if len(libraries) < 2:
             raise ValueError(f"{case_id} has no external comparator")
         for field in ("family", "contract_id"):
@@ -165,13 +165,13 @@ def aggregate(rows: list[dict[str, str]]) -> list[Aggregate]:
         grouped.items(),
         key=lambda item: (
             item[0][0],
-            item[0][1] != "tessera",
+            item[0][1] != "resample4s",
             item[0][1],
         ),
     )
     for (case_id, library), group_rows in ordered:
         first = group_rows[0]
-        baseline = medians[(case_id, "tessera")]
+        baseline = medians[(case_id, "resample4s")]
         median = medians[(case_id, library)]
         result.append(
             Aggregate(
@@ -196,7 +196,7 @@ def aggregate(rows: list[dict[str, str]]) -> list[Aggregate]:
                 fixture_checksum=parse_integer(first["fixture_checksum"]),
                 quality_primary=parse_integer(first["quality_primary"]),
                 quality_secondary=parse_integer(first["quality_secondary"]),
-                relative_to_tessera=median / baseline,
+                relative_to_resample4s=median / baseline,
             )
         )
     return result
@@ -212,8 +212,8 @@ def write_csv(path: Path, rows: list[Aggregate]) -> None:
         writer.writeheader()
         for row in rows:
             values = row.__dict__.copy()
-            values["relative_to_tessera"] = (
-                f"{row.relative_to_tessera:.4f}"
+            values["relative_to_resample4s"] = (
+                f"{row.relative_to_resample4s:.4f}"
             )
             writer.writerow(values)
 
@@ -225,13 +225,13 @@ def write_markdown(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        f"# Tessera cross-language benchmark: {profile}",
+        f"# Resample4s cross-language benchmark: {profile}",
         "",
         "Each timed cell generates canonical zero-based analysis and assessment "
         "ordinals through the library's public API, materializes them, and "
         "performs one linear reduction. Contract validation runs before timing.",
         "",
-        "| Case | Library | Median ms | Relative to Tessera | "
+        "| Case | Library | Median ms | Relative to Resample4s | "
         "Primary quality | Assessment ordinals |",
         "|---|---:|---:|---:|---:|---:|",
     ]
@@ -239,21 +239,21 @@ def write_markdown(
         lines.append(
             f"| {row.case_id} | {row.library} {row.library_version} | "
             f"{row.median_ns / 1e6:.3f} | "
-            f"{row.relative_to_tessera:.2f}x | "
+            f"{row.relative_to_resample4s:.2f}x | "
             f"{row.quality_primary} | {row.assessment_ordinals} |"
         )
     lines.extend(
         [
             "",
             "A relative value above 1 means that the comparator took longer "
-            "than Tessera in this run. It is not a universal speed claim.",
+            "than Resample4s in this run. It is not a universal speed claim.",
             "",
             "Interpretation boundaries:",
             "",
             "- Inputs, unit counts, role sizes, and semantic contracts match "
             "within each case. Random assignments need not match.",
             "- Non-bootstrap roles are sorted inside the timed region so every "
-            "library returns Tessera's canonical increasing selections.",
+            "library returns Resample4s's canonical increasing selections.",
             "- Bootstrap compares unconditional draws with OOB complements. "
             "OOB counts may differ because random streams differ.",
             "- rsample uses its public data-frame split API; splitTools and "

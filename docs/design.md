@@ -1,6 +1,6 @@
 # Design decisions
 
-This is the implementation-facing record for Tessera 0.1. The normative
+This is the implementation-facing record for Resample4s 0.1. The normative
 requirements remain in `PRD.md`; this file records the decisions reviewers and
 maintainers need when changing code.
 
@@ -20,8 +20,8 @@ maintainers need when changing code.
 6. `Injection` closes the reindexing composition lattice and uniquely factors
    into a `Selection` followed by a `Permutation`.
 7. Public accessors are total. Public array-taking factories copy; explicitly
-   named `private[tessera]` unchecked paths accept only buffers and values whose
-   invariants Tessera just established.
+   named `private[resample4s]` unchecked paths accept only buffers and values whose
+   invariants Resample4s just established.
 8. `Design`, `Labels`, compilation, randomization keys, canonical assignment
    framing, costs, and receipts are core-owned.
 9. Alder integration gates the stable `0.1.0` surface. Without it, only an
@@ -67,7 +67,7 @@ maintainers need when changing code.
 25. Internal unchecked canonical-writing helpers are centralized and named.
     They accept only hard-coded schema identifiers or values already validated
     by public smart constructors. Iterator `next` and indexed-sequence `apply`
-    retain their standard library partial contracts; Tessera's domain lookups
+    retain their standard library partial contracts; Resample4s's domain lookups
     remain `Either`-returning.
 26. The Alder integration spike separated `ExactOnce` from per-repeat `Exact`.
     Repeating a partitioning design drops the stronger proof, and Alder accepts
@@ -81,7 +81,7 @@ maintainers need when changing code.
     test capabilities. Default catalogue compilation captures only no-op
     observers, so no mutable instrumentation enters the public design or plan
     surface.
-29. `tessera-laws` publishes the consumer-relevant universal laws directly.
+29. `resample4s-laws` publishes the consumer-relevant universal laws directly.
     Tolerance-bearing redraw, OOB, draw-length, and sampled-rank checks remain
     in the statistical test suite and are not promoted to laws.
 30. Digest providers expose one incremental accumulator per invocation.
@@ -119,10 +119,14 @@ maintainers need when changing code.
     values. Expansion tests compare keys, errors, assignments, cost,
     diagnostics, fingerprints, and receipts, while compiler probes keep
     capability failures expressed in domain terms.
+36. Resample4s is the final pre-publication name. The package namespace,
+    artifact ids, canonical receipt framing, benchmark protocol, and repository
+    move together. No compatibility alias preserves the discarded `tessera`
+    working name because no external artifact or consumer namespace exists.
 
 ## Evidence policy
 
-Universal statements belong in `tessera-laws`. Small finite algorithms also
+Universal statements belong in `resample4s-laws`. Small finite algorithms also
 receive exhaustive oracles. Distributional statements use fixed seed sets,
 predeclared confidence thresholds, and exact finite-sample expectations. Cost
 tests distinguish resident state, unit generation, candidate preflight, eager

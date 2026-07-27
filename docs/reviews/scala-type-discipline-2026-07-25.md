@@ -23,7 +23,7 @@ expose mutable array ownership.
    Alder's one-OOF-value capability. `Coverage.ExactOnce` now carries that
    stronger proof, and `.repeat` drops it statically.
 5. Internal partial operations are centralized in named
-   `private[tessera]` paths whose invariants are established immediately
+   `private[resample4s]` paths whose invariants are established immediately
    beforehand. Public domain lookup remains total through `Either`.
 
 ## Surface reconciliation

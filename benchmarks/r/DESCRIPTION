@@ -1,10 +1,10 @@
-Package: tesseraBenchmarks
+Package: resample4sBenchmarks
 Type: Project
-Title: Tessera Cross-Language Benchmark Environment
+Title: Resample4s Cross-Language Benchmark Environment
 Version: 0.1.0
-Authors@R: person("Tessera", "Contributors", role = c("aut", "cre"),
+Authors@R: person("Resample4s", "Contributors", role = c("aut", "cre"),
     email = "noreply@example.com")
-Description: Reproducible R dependencies for Tessera semantic-parity
+Description: Reproducible R dependencies for Resample4s semantic-parity
     resampling benchmarks.
 License: Apache License (>= 2)
 Encoding: UTF-8

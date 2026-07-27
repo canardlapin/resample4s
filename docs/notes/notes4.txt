@@ -2,7 +2,7 @@ SupervisedData should live in Alder, not in the resampling library.
 
 More specifically:
 
-tessera-core
+resample4s-core
   Population
   IndexSpace
   Selection / Draw / Permutation
@@ -20,11 +20,11 @@ alder-core
   Prediction
   FitContext
 alder-resampling
-  interprets Tessera designs over Alder data
+  interprets Resample4s designs over Alder data
 
 The boundary
 
-Tessera should see only something like:
+Resample4s should see only something like:
 
 val population: Population[RowId] =
   training.population
@@ -110,7 +110,7 @@ val survivalTask =
     )
   )
 
-Each task shares the same population identity and therefore can use the same compatible Tessera partitions where appropriate.
+Each task shares the same population identity and therefore can use the same compatible Resample4s partitions where appropriate.
 
 Package location
 
@@ -159,4 +159,4 @@ SupervisedData supplies rows, outcomes, and stable identity. Prepared records wh
 
 So the direct answer is:
 
-SupervisedData belongs in alder-data. Tessera owns population allocation, while Alder owns the interpretation of those allocations as predictors, outcomes, fitted transformations, and prediction tasks.
+SupervisedData belongs in alder-data. Resample4s owns population allocation, while Alder owns the interpretation of those allocations as predictors, outcomes, fitted transformations, and prediction tasks.

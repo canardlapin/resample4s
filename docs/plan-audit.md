@@ -70,16 +70,24 @@ green aggregate count is not treated as proof unless the named gate is covered.
   protocol covers 24 supported library/case cells; the standard profile
   preserves 120 raw rows and 24 comparable aggregates with grouped-stratified
   quality reported beside runtime.
-- Profile-guided Monte Carlo/RNG kernels retain exact seed identity under
-  BigInt-rejection and complete-shuffle differential oracles. The standard
-  100,000-row/100-unit Tessera median decreased from 1,248.301 ms to 82.417 ms;
-  the refreshed cross-library artifact contract remains green.
+- Profile-guided Monte Carlo/RNG kernels remain exact against the BigInt
+  rejection and complete-shuffle differential oracles within the canonical
+  Resample4s protocol. The name cutover intentionally changed design keys; new
+  cross-platform goldens lock them. The standard 100,000-row/100-unit median is
+  94.025 ms versus the 1,248.301 ms pre-optimization evidence, and the refreshed
+  cross-library artifact contract remains green.
 - Public usability probes prove named bootstrap policies expand into the same
   keys, failures, assignments, cost, diagnostics, fingerprints, and receipts;
   coverage and abstract-composition compiler diagnostics name the relevant
   domain types. The primary README path retains `Either`; the focused
   type-discipline reconciliation is recorded in
   `docs/reviews/scala-type-discipline-usability-2026-07-26.md`.
+- The D30 identity cutover covers packages, artifacts, canonical framing,
+  benchmark protocols, workflows, and documentation. Regenerated golden
+  fixtures pass on all three platforms; refreshed smoke and standard
+  cross-language profiles each validate 120 raw rows and 24 aggregates.
+  Published JVM jars contain only `resample4s/` classes, and a clean external
+  consumer resolves `resample4s-laws` on JVM, Scala.js, and Scala Native.
 - Open: hosted CI cannot run until a Git remote exists. Local evidence is not
   mislabeled as hosted-CI evidence.
 
@@ -88,7 +96,7 @@ green aggregate count is not treated as proof unless the named gate is covered.
 - Alder commit `648ac3b` contains the typed `ExactOnce` adapter, receipt
   retention, cross-fit exclusion evidence, and negative compilation fixtures.
 - Its 114-test module set passed separately on JVM, Scala.js, and Scala Native
-  (342 total). Tessera records the resulting `ExactOnce` correction in PRD D23.
+  (342 total). Resample4s records the resulting `ExactOnce` correction in PRD D23.
 
 ## Phase 6 — open
 

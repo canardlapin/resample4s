@@ -32,7 +32,7 @@ two contract gaps blocked PLAN phase 4 and one public-law claim was incomplete.
    exhaust 974 grouped configurations and 4,866 grouped-stratified
    configurations, plus a 65,536-allocation frontier fixture.
 3. **Published-law scope — resolved.**
-   `tessera-laws` now exposes full label-recoding equivalence across owned
+   `resample4s-laws` now exposes full label-recoding equivalence across owned
    labels, randomization keys, fingerprints, and compiled assignments. It also
    exposes bootstrap order, multiplicity, and assessment preservation through
    composition. A deliberately non-equivalent recoding fails the public law.
@@ -50,7 +50,7 @@ permutation behavior.
 |---|---|---|
 | ScalaCheck generators | Strong | Generated valid, boundary, degenerate, and invalid catalogue/algebra domains; exhaustive grouped lattices are separate deterministic oracles. |
 | Reusable laws | Strong | Public cross-built laws cover algebra, exact plans, groups, strata, bootstrap composition, permutations, recoding, receipts, costs, and perturbation. |
-| Test framework / Discipline | Strong | MUnit and MUnit-ScalaCheck execute on all targets; Discipline is not applicable because Tessera exposes no standard Cats instances. |
+| Test framework / Discipline | Strong | MUnit and MUnit-ScalaCheck execute on all targets; Discipline is not applicable because Resample4s exposes no standard Cats instances. |
 | Typeclass coherence | Strong | The closed `Compose` table has one coherent instance per cell and executable laws. |
 | Provider conformance | Strong | FNV and a 128-bit provider cover chunk invariance, width, provider identity, verification, and typed incremental failure. |
 | Cross-platform CI | Present but incomplete | Local JVM, Scala.js, and Scala Native gates pass; hosted execution remains unavailable. |

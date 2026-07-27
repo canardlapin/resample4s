@@ -43,7 +43,7 @@ benchmark_root="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
   java -version 2>&1 | sed -n '1p'
   printf 'sbt benchmark Java: %s\n' \
     "$(first_csv_value "${scala_output}" 4)"
-  printf 'Tessera: %s\n' \
+  printf 'Resample4s: %s\n' \
     "$(first_csv_value "${scala_output}" 3)"
   printf 'Python: %s\n' \
     "$(first_csv_value "${python_output}" 4)"

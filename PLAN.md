@@ -1,8 +1,8 @@
-# Tessera — Execution Plan
+# Resample4s — Execution Plan
 
-Companion to `PRD.md` (v0.10). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
+Companion to `PRD.md` (v0.11). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
 
-Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, the phase-4 fresh-context assurance review, the semantic-parity Python/R benchmark tranche, exact-equivalent Monte Carlo/RNG kernel profiling, and the public-surface usability pass (PRD §12 D24–D29).
+Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, the phase-4 fresh-context assurance review, the semantic-parity Python/R benchmark tranche, exact-equivalent Monte Carlo/RNG kernel profiling, the public-surface usability pass, and the Resample4s name ratification (PRD §12 D24–D30).
 
 ## Phase 0 — Bootstrap (small)
 
@@ -17,7 +17,7 @@ Revised 2026-07-26 after three independent PRD review passes, the implementation
 
 This phase is larger than v0.1's phase 1 by design: `Design` and `Labels` are core types (PRD §7), and putting them here is what makes phases 2 and 3 actually independent.
 
-- **Reindexing lattice.** `IndexSpace` (opaque, validated); `Draw` / `Injection` / `Selection` / `Permutation` with private constructors, validated factories, **defensive copies** on every public factory, `private[tessera] fromOwned` for internal buffers. Total public accessors (`at: Either[OutOfDomain, Int]`, `toIArray`), `private[tessera] unsafeAt`.
+- **Reindexing lattice.** `IndexSpace` (opaque, validated); `Draw` / `Injection` / `Selection` / `Permutation` with private constructors, validated factories, **defensive copies** on every public factory, `private[resample4s] fromOwned` for internal buffers. Total public accessors (`at: Either[OutOfDomain, Int]`, `toIArray`), `private[resample4s] unsafeAt`.
 - **Composition.** `Compose[F, G] { type Out }` typeclass with instances exactly matching the PRD §4.2 closure table; runtime dimension check returning `Either[DomainMismatch, Out]`. `Injection.factor: (Selection, Permutation)`. Explicit `widen` conversions, no implicits.
 - **Set algebra and pullback.** `Selection` complement/intersection/union/difference (codomain-checked, `Either`-returning); `pull(x, ρ)`; `Draw.multiplicity`/`support`/`sameMultiset`; `Permutation` group ops.
 - **Selection backings.** `Explicit`, `Block`, `ComplementBlock`, `LabelClasses(labels, classSet)`, and `ComplementOf(base)` behind one extensional type. Equality/hash/digest ignore the backing; double complement returns the base. This makes LOO O(1), delete-*d* analysis O(d), and grouped-bootstrap OOB O(g) view state rather than eagerly expanding rows (PRD §4.2/§4.8).
@@ -74,6 +74,12 @@ Independent of phase 2 once phase 1 lands (both need only `Design`/`Labels`/`Pla
   `Exact`/`ExactOnce` and abstract-composition diagnostics; the README's first
   copyable program retains the typed error channel. Consumer SPI fixtures use
   no package-private access or impossible error branches.
+- **Identity cutover:** before the first publication, the `resample4s` name must
+  cover Scala packages, artifact ids, canonical framing tags, benchmark
+  protocols, documentation, and the repository. Because no `tessera` artifact
+  exists, the old working name receives no compatibility alias. Cross-platform
+  golden and benchmark-contract evidence must be regenerated after the
+  canonical tags change.
 - **Independent review pass:** fresh-context subagent review of the whole public surface against PRD principles P1–P7 (plus `/scala-type-discipline` on the diff); fix findings. Do not self-approve.
 
 **Gate:** CI green including cost guardrails and benchmark protocol tests;
@@ -83,11 +89,11 @@ environment manifests, and interpretation-bounded reports.
 
 ## Phase 5 — Alder integration spike (gated on alder-data existing)
 
-- Re-survey alder first (it is moving). Propose the alder PRD amendment: resampling interpretation moves to a tessera-backed module; whitelist `tessera-core` in alder's dependency policy.
-- Build the thin adapter in the alder repo: ordinals ↔ RowId, `GroupOf` → `Labels`, alder Seed → tessera Seed, analysis/assessment → `Use.Train`/`Use.Test`, `PlanReceipt`'s tagged fingerprints → alder `Audit` (alder D15).
+- Re-survey alder first (it is moving). Propose the alder PRD amendment: resampling interpretation moves to a resample4s-backed module; whitelist `resample4s-core` in alder's dependency policy.
+- Build the thin adapter in the alder repo: ordinals ↔ RowId, `GroupOf` → `Labels`, alder Seed → resample4s Seed, analysis/assessment → `Use.Train`/`Use.Test`, `PlanReceipt`'s tagged fingerprints → alder `Audit` (alder D15).
 - **Prove the Alder D19 claim:** the adapter's `CompleteResampler` factory takes `Plan[Split[Selection], Coverage.ExactOnce]` and is total — no runtime coverage check. Assert negatively too: Holdout, Bootstrap, and repeated `Coverage.Exact` plans must fail to compile there. `ExactOnce` was added by the integration spike because `Exact` is per repeat and repeated K-fold is not exactly once over the whole plan (PRD D23).
 - Run alder's required resampling laws (coverage, disjointness, determinism, order reconstruction, fingerprints — alder's open priority-1 tracker item) through the adapter; prototype `crossFitExclusion` with instrumented data.
-- Feed any boundary friction back into tessera **before** the surface freeze.
+- Feed any boundary friction back into resample4s **before** the surface freeze.
 
 **Gate:** Alder's resampling law list passes via the adapter on all Alder platforms; compile-time negative tests for non-exact and repeated-exact plans are in place.
 

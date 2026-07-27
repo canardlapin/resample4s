@@ -47,20 +47,25 @@ directly in increasing order.
 An exhaustive small differential test compares this shortcut with the complete
 shuffle-and-sort definition for every `2 <= n <= 48`, every
 `1 <= q < n`, and five adversarial seeds. Existing golden fixtures separately
-lock the seed-to-assignment mapping on JVM, Scala.js, and Scala Native.
+lock the seed-to-assignment mapping on JVM, Scala.js, and Scala Native. The
+later pre-publication rename changed the canonical design framing from the
+discarded working name to `resample4s`; that identity change intentionally
+created new design keys, and the regenerated goldens lock the new protocol.
 
 ## Result
 
 The refreshed standard run records the final result in
 [`../../benchmarks/results/2026-07-26-standard/report.md`](../../benchmarks/results/2026-07-26-standard/report.md).
-The checked-in pre-change Tessera median was 1,248.301 ms; the refreshed median
-is 82.417 ms, a 15.15x reduction on this machine. In the same refreshed run,
-scikit-learn recorded 272.065 ms and rsample recorded 2,198.725 ms for the
-matching artifact contract.
+The checked-in pre-change Resample4s median was 1,248.301 ms. The original
+post-optimization run recorded 82.417 ms. After the canonical name cutover, the
+same standard profile recorded 94.025 ms, a 13.28x reduction from the
+pre-change evidence on this machine. In that current run, scikit-learn recorded
+290.519 ms and rsample recorded 2,178.829 ms for the matching artifact
+contract.
 
-The primitive bounded-draw kernel also reduced Tessera's bootstrap median from
-272.565 ms to 105.381 ms. That is a shared-kernel consequence, not a change to
-bootstrap sampling or OOB policy.
+The primitive bounded-draw kernel also reduced Resample4s's bootstrap median
+from 272.565 ms to 110.390 ms in the current run. That is a shared-kernel
+consequence, not a change to bootstrap sampling or OOB policy.
 
 Interpret its ratios as directional evidence for this machine, not as a
 universal performance guarantee. The deterministic complexity and

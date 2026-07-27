@@ -25,7 +25,7 @@ environment_output="${output_directory}/environment.txt"
 (
   cd "${repository_root}"
   sbt -batch \
-    "benchmarks/runMain tessera.benchmarks.BenchmarkMain --manifest benchmarks/cases.csv --profile ${profile} --warmup ${warmup} --measure ${measure} --output ${scala_output}"
+    "benchmarks/runMain resample4s.benchmarks.BenchmarkMain --manifest benchmarks/cases.csv --profile ${profile} --warmup ${warmup} --measure ${measure} --output ${scala_output}"
 )
 
 (

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Tessera are recorded here.
+All notable changes to Resample4s are recorded here.
 
 ## 0.1.0 — Unreleased
 
@@ -38,6 +38,10 @@ Initial cross-platform release candidate.
 
 ### Changed
 
+- The pre-publication working name `tessera` was replaced by `resample4s`.
+  Packages, artifacts, canonical receipt framing, benchmark protocols, and
+  documentation use the new name. No compatibility alias is published because
+  no artifact existed under the working name.
 - Bootstrap no longer chooses a redraw policy through a bare constructor.
   Ordinary and grouped bootstrap expose named unconditional, redrawing, and
   fail-on-empty-OOB presets plus an explicit-policy route. Public descriptor,

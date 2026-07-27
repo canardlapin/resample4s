@@ -1,7 +1,7 @@
-package tessera.examples
+package resample4s.examples
 
-import tessera.core.*
-import tessera.designs.*
+import resample4s.core.*
+import resample4s.designs.*
 
 /** Nested cross-validation is ordinary composition, not a separate design.
   *

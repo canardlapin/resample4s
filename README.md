@@ -1,11 +1,11 @@
-# Tessera
+# Resample4s
 
-Tessera is a zero-runtime-dependency Scala 3 library for finite reindexings,
+Resample4s is a zero-runtime-dependency Scala 3 library for finite reindexings,
 partitions, and reproducible resampling designs. It targets JVM, Scala.js, and
 Scala Native from one pure source tree.
 
 The core idea is small: a dataset has ordinal positions `0` through `n - 1`, and
-a resample is a function from a new finite ordinal into those positions. Tessera
+a resample is a function from a new finite ordinal into those positions. Resample4s
 keeps the important kinds of that function distinct:
 
 - `Draw` is ordered and may repeat positions.
@@ -21,14 +21,14 @@ reason nested cross-validation cannot reach an outer assessment fold.
 
 This repository is currently `0.1.0-SNAPSHOT`. The fresh-context review and
 Alder integration gates are complete; the public surface is not frozen until
-the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.10;
+the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.11;
 rolling-origin/time-series designs are explicitly deferred.
 
 ## Example
 
 ```scala
-import tessera.core.*
-import tessera.designs.*
+import resample4s.core.*
+import resample4s.designs.*
 
 def firstNestedAssessment(
     outerSplit: Split[Selection]
@@ -55,7 +55,7 @@ The complete, cross-platform-compiled version is
 
 ## Catalogue
 
-The `tessera-designs` module includes:
+The `resample4s-designs` module includes:
 
 - named-role holdout and Monte Carlo splits;
 - plain, stratified, grouped, and grouped-stratified K-fold;
@@ -84,7 +84,7 @@ FNV-1a-64 provider is only a checksum for accidental divergence. It is not
 collision-resistant, tamper-evident, or authenticated. Consumers may supply an
 arbitrary-length digest provider through a per-invocation incremental
 accumulator; authentication still requires trusted storage or a signature
-outside Tessera.
+outside Resample4s.
 
 ## Honest limits
 
@@ -99,10 +99,10 @@ outside Tessera.
 
 ## Modules and verification
 
-- `tessera-core`: algebra, RNG, design SPI, plans, and receipts.
-- `tessera-designs`: built-in design catalogue.
-- `tessera-laws`: published ScalaCheck law bundles.
-- `tessera-benchmarks`: non-published JVM harness with locked scikit-learn,
+- `resample4s-core`: algebra, RNG, design SPI, plans, and receipts.
+- `resample4s-designs`: built-in design catalogue.
+- `resample4s-laws`: published ScalaCheck law bundles.
+- `resample4s-benchmarks`: non-published JVM harness with locked scikit-learn,
   splitTools, and rsample comparators.
 
 Run the full local gate with:
