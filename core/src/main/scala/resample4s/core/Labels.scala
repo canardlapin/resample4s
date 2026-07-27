@@ -21,6 +21,22 @@ final class Labels private (
 
   private[resample4s] def unsafeAt(index: Int): Int = codes(index)
 
+  /** Projects canonical labels through a non-empty selection whose codomain is
+    * this label population.
+    *
+    * The caller is internal because those two facts have already been
+    * established by a validated `Split` and its compiled design. Classes that
+    * are absent from the selection are removed and the remainder are
+    * canonically recoded.
+    */
+  private[resample4s] def projectUnsafe(selection: Selection): Labels =
+    val selected = new Array[Int](selection.domain)
+    var index = 0
+    while index < selection.domain do
+      selected(index) = codes(selection.unsafeAt(index))
+      index += 1
+    Labels.canonicalize(IArray.unsafeFromArray(selected), selection.domain)
+
   override def equals(other: Any): Boolean =
     other match
       case that: Labels =>
@@ -100,27 +116,29 @@ object Labels:
   def dense(codes: IArray[Int], n: Int): Either[DesignError, Labels] =
     if codes.length != n then Left(DesignError.LengthMismatch(n, codes.length))
     else if n == 0 then Left(DesignError.EmptyPopulation)
-    else
-      val minima = mutable.HashMap.empty[Int, Int]
-      var index = 0
-      while index < n do
-        val code = codes(index)
-        minima.get(code) match
-          case Some(previous) =>
-            if index < previous then minima.update(code, index)
-          case None => minima.update(code, index)
-        index += 1
-      val ordered = minima.toVector.sortBy(_._2).map(_._1)
-      val recode = mutable.HashMap.empty[Int, Int]
-      index = 0
-      while index < ordered.size do
-        recode.update(ordered(index), index)
-        index += 1
-      val owned = new Array[Int](n)
-      index = 0
-      while index < n do
-        owned(index) = recode(codes(index))
-        index += 1
-      Right(new Labels(IArray.unsafeFromArray(owned), ordered.size))
+    else Right(canonicalize(codes, n))
+
+  private def canonicalize(codes: IArray[Int], n: Int): Labels =
+    val minima = mutable.HashMap.empty[Int, Int]
+    var index = 0
+    while index < n do
+      val code = codes(index)
+      minima.get(code) match
+        case Some(previous) =>
+          if index < previous then minima.update(code, index)
+        case None => minima.update(code, index)
+      index += 1
+    val ordered = minima.toVector.sortBy(_._2).map(_._1)
+    val recode = mutable.HashMap.empty[Int, Int]
+    index = 0
+    while index < ordered.size do
+      recode.update(ordered(index), index)
+      index += 1
+    val owned = new Array[Int](n)
+    index = 0
+    while index < n do
+      owned(index) = recode(codes(index))
+      index += 1
+    new Labels(IArray.unsafeFromArray(owned), ordered.size)
 
   given CanEqual[Labels, Labels] = CanEqual.derived

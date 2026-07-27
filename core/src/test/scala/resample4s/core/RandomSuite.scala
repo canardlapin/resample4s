@@ -130,11 +130,15 @@ final class RandomSuite extends munit.FunSuite:
     val changedDomain =
       right(StreamPath.of(StreamDomain.Stratum, 1))
         .append(StreamDomain.Unit, 2)
+    val outerUnit =
+      right(StreamPath.of(StreamDomain.OuterUnit, 1))
+        .append(StreamDomain.Unit, 2)
 
     val first = Rand.derive(seed, key, right(repeatUnit))
     assertEquals(first, Rand.derive(seed, key, right(repeatUnit)))
     assertNotEquals(first, Rand.derive(seed, key, right(unitRepeat)))
     assertNotEquals(first, Rand.derive(seed, key, right(changedDomain)))
+    assertNotEquals(first, Rand.derive(seed, key, right(outerUnit)))
     assertEquals(first.value, 1064180939181588761L)
   }
 

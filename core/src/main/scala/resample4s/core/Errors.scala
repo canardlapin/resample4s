@@ -58,6 +58,8 @@ object DesignError:
   final case class ExpectedSingleRepeat(actual: Int) extends DesignError
   final case class EmptyOutOfBag(unit: UnitKey, attempts: Int)
       extends DesignError
+  final case class NestedInnerFailure(outer: UnitKey, cause: DesignError)
+      extends DesignError
   final case class InvalidRedrawAttempts(attempts: Int) extends DesignError
   final case class PotentialDrawSizeExceeded(groups: Int, maxGroupSize: Int)
       extends DesignError

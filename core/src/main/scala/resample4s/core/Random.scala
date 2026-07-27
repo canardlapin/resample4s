@@ -24,6 +24,7 @@ enum StreamDomain(val tag: Int):
   case FoldPriority extends StreamDomain(5)
   case ExchangeabilityBlock extends StreamDomain(6)
   case RedrawAttempt extends StreamDomain(7)
+  case OuterUnit extends StreamDomain(8)
 
 final case class StreamSegment private[resample4s] (
     domain: StreamDomain,

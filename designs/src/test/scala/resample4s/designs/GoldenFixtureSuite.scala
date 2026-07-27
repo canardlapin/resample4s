@@ -37,6 +37,10 @@ final class GoldenFixtureSuite extends munit.FunSuite:
     val seed = Seed.fromLong(42L)
     val groups = labels(1, 1, 2, 2, 3, 3, 4, 4)
     val strata = labels(1, 2, 1, 2, 1, 2, 1, 2)
+    val nested =
+      right(
+        NestedCrossValidation(3, 2).compile(space, seed)
+      ).plan.first
 
     val observed =
       Vector(
@@ -59,6 +63,12 @@ final class GoldenFixtureSuite extends munit.FunSuite:
               .compile(space, seed)
           ).plan,
           8
+        ),
+        "nested-outer-assessment" -> vector(
+          nested.outer.assessment
+        ),
+        "nested-inner-assessment" -> vector(
+          nested.inner.first.assessment
         ),
         "holdout" -> vector(
           right(
@@ -154,6 +164,8 @@ final class GoldenFixtureSuite extends munit.FunSuite:
         "stratified" -> Vector(0, 0, 1, 1, 0, 1, 2, 2),
         "grouped" -> Vector(0, 0, 1, 1, 1, 1, 2, 2),
         "grouped-stratified" -> Vector(2, 2, 2, 2, 0, 0, 1, 1),
+        "nested-outer-assessment" -> Vector(3, 5, 7),
+        "nested-inner-assessment" -> Vector(0, 2, 4),
         "holdout" -> Vector(0, 5, 6),
         "monte-carlo" -> Vector(1, 2, 4),
         "leave-one-out" -> Vector(5),

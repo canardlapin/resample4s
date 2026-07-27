@@ -2,9 +2,9 @@
 
 **A pure, typed algebra of finite reindexings, partitions, and reproducible randomized designs.**
 
-- Status: proposal v0.11 (name-ratified release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, semantic-parity Python/R benchmarks, exact-equivalent Monte Carlo/RNG kernel profiling, a public-surface usability pass, and the final pre-publication name decision (see §12 decision log)
+- Status: proposal v0.12 (nested-CV release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, semantic-parity Python/R benchmarks, exact-equivalent Monte Carlo/RNG kernel profiling, two public-surface usability passes, the final pre-publication name decision, and the primitive nested-cross-validation decision (see §12 decision log)
 - Name: `resample4s`. The name states the statistical domain and Scala ecosystem directly; it covers cross-validation, bootstrap, jackknife, permutation, and the shared reindexing algebra without privileging one design family.
-- Canonical repository and artifact namespace: `resample4s`. The active local checkout remains `~/code/scala/tessera` until repository cutover; no published coordinate or compatibility alias uses the discarded working name.
+- Canonical repository, checkout, and artifact namespace: `resample4s`. No published coordinate or compatibility alias uses the discarded `tessera` working name.
 - Supersedes: the sibling `resample4s/resample4s.md` note dated 2026-07-23. That document described a broader, Frame4s-coupled workflow library; this repository retains the name for its extracted, data-agnostic resampling core.
 - Source notes: `notes2.txt` (= `note1.txt`, the algebraic center), `notes3.txt` (flagship nested-CV usage sketch), `notes4.txt` (module boundary: resample4s vs. alder)
 
@@ -27,7 +27,9 @@ Resample4s deliberately knows **nothing** about data. It never sees rows, outcom
 
 ## 2. Non-goals
 
-- No dataframes, feature pipelines, learners, metrics, or tuning (alder's job; the `Workflow`/`NestedCrossValidation` surface in `notes3.txt` is alder API, out of scope here — see §9).
+- No dataframes, feature pipelines, learners, metrics, or tuning. Resample4s
+  owns the data-blind nested allocation plan; Alder interprets that plan while
+  fitting, tuning, predicting, and scoring (§9).
 - No I/O, no effects, no concurrency. Everything is a pure value.
 - No general-purpose RNG library. Resample4s ships exactly the splittable, platform-stable generator its designs need, and exposes it only as far as reproducibility requires.
 - No per-row identity. Resample4s speaks ordinals; row identity (`RowId`) is the consumer's concern (forced anyway: alder's `RowId` constructor is `private[alder]`).
@@ -171,7 +173,7 @@ final class StreamPath private (...) // domain tag + ordered integer ordinals
 ```
 
 - splitmix64 core plus precisely one shuffle: for `i = length − 1` down to `1`, draw `j ∈ [0, i]` and swap positions `i` and `j`. `nextIntBounded(b)` interprets a generated word as unsigned, rejects values below `2⁶⁴ mod b`, and returns the unsigned remainder modulo `b`. `nextBigIntBounded(upperExclusive)` takes the minimum required bit width, concatenates unsigned 64-bit words, masks unused high bits, and rejects candidates `≥ upperExclusive`. Thus bounded draws are unbiased and the Fisher–Yates variant is not left to platform/library choice. All arithmetic and output are bit-stable across JVM/JS/Native (Scala.js `Long` is exact; no floating point enters index generation).
-- Child-stream derivation: `derive(seed, designKey: DesignKey, path: StreamPath)`. `DesignKey` is the fixed FNV-1a-64 checksum of the versioned canonical design bytes, used only to separate random streams; it is not the policy-selectable receipt fingerprint and carries no audit claim. Compile therefore never depends on an ambient `DigestAlgorithm`. A path is a non-empty ordered sequence of `(domainTag, ordinal)` segments; the closed tags are `Repeat`, `Unit`, `Stratum`, `GroupSizeBucket`, `FoldPriority`, `ExchangeabilityBlock`, and `RedrawAttempt`. Segments are length-framed and mixed sequentially with the splitmix64 finalizer; they are not XOR-reduced as an unordered tuple. Thus `[(Repeat, 1), (Unit, 2)]` cannot alias `[(Repeat, 2), (Unit, 1)]` by commutative cancellation, and adding a new stream family cannot silently reuse an old domain.
+- Child-stream derivation: `derive(seed, designKey: DesignKey, path: StreamPath)`. `DesignKey` is the fixed FNV-1a-64 checksum of the versioned canonical design bytes, used only to separate random streams; it is not the policy-selectable receipt fingerprint and carries no audit claim. Compile therefore never depends on an ambient `DigestAlgorithm`. A path is a non-empty ordered sequence of `(domainTag, ordinal)` segments; the closed tags are `Repeat`, `Unit`, `Stratum`, `GroupSizeBucket`, `FoldPriority`, `ExchangeabilityBlock`, `RedrawAttempt`, and `OuterUnit`. Segments are length-framed and mixed sequentially with the splitmix64 finalizer; they are not XOR-reduced as an unordered tuple. Thus `[(Repeat, 1), (Unit, 2)]` cannot alias `[(Repeat, 2), (Unit, 1)]` by commutative cancellation, and adding a new stream family cannot silently reuse an old domain.
 - Golden fixtures pin exact assignments per (design, seed, n) and are asserted identical on all three platforms in CI. **Golden fixtures are compatibility locks, not correctness proofs** — see §6.3.
 
 ### 4.5 Designs and compilation
@@ -438,6 +440,10 @@ every supported platform.
 **Receipt work is explicit.** `Compiled.receipt(population)` streams a canonical *semantic* assignment encoding through the supplied `DigestAlgorithm`; `compile` never computes it implicitly. The encoding is independent of `Selection` backing:
 
 - a partition plan encodes its per-repeat ordinal-to-fold assignment vector in O(r·n);
+- a nested-CV plan encodes each outer split followed by every embedded inner
+  split in outer-key/inner-key order; its receipt work is
+  `O(k_outer · n + k_outer · k_inner · m_max)`, where `m_max` is the largest
+  outer-analysis size;
 - holdout and Monte Carlo encode the selected role per unit in O(u·n);
 - ordinary bootstrap encodes each ordered draw in O(t·n); grouped bootstrap encodes each emitted ordered row draw in `O(Σ_j (g + L_j))`, using a deterministic counting pass where needed rather than retaining it; permutation encodes each permutation in O(t·n);
 - jackknife encodes the deleted combination, not its materialized complement, in O(u·(U(n,d) + d)).
@@ -510,6 +516,38 @@ This section closes the remaining catalogue-level ambiguity. “Random” below 
 - `.repeat(r)` is available on a design with one native repeat and requires `r ≥ 1`. It preserves the base fold axis and per-repeat `Coverage.Exact`, but drops `Coverage.ExactOnce`, producing shape `(r, baseFolds)`; repeat `p` recompiles the base allocation with the `(Repeat, p)` child stream. Families with an explicit `times` parameter already own the repeat axis and do not also expose `.repeat`, avoiding an ambiguous nested flattening rule.
 - Stratified, grouped, and grouped-stratified K-fold replace only the allocation step with §4.6; they use the same complement construction and repeat rule. `LeaveOneOut` is the seed-independent partition into the `n` singleton assessments in ascending ordinal order. `LeaveOneGroupOut` uses the canonical group order from §4.6.
 
+**Nested cross-validation.**
+
+- `NestedCrossValidation(kOuter, kInner)` is the exact convenience expansion of
+  an outer `KFold(kOuter)` plus one `KFold(kInner)` compiled inside every outer
+  analysis space. `stratified`, `grouped`, and `groupedStratified` variants use
+  the corresponding K-fold allocator at both levels and project the
+  design-owned canonical labels through each outer analysis before compiling
+  the inner design.
+- Compilation returns
+  `Compiled[NestedFold, Coverage.ExactOnce]`. Each top-level plan unit is one
+  `NestedFold`: its `outer` split is in the original population, and its
+  `inner` plan has `Coverage.ExactOnce` with every inner analysis and assessment
+  already embedded back into that same original population. It also retains
+  the derived inner seed, diagnostics, and cost.
+- The outer allocation is exactly the corresponding standalone K-fold compiled
+  with the caller's seed. Each inner seed is derived before plan construction
+  from the nested design key and the outer unit's linear ordinal under the
+  `OuterUnit` stream domain. An inner compilation failure is returned by the
+  outer `compile` as `DesignError.NestedInnerFailure(outerKey, cause)`, retaining
+  both the failing outer unit and the original typed cause; no valid
+  `NestedFold.inner.at` can fail with a late `DesignError`.
+- `Selection ∘ Selection = Selection` is the implementation route and the
+  leakage proof. Inner assessment blocks partition `outer.analysis`, every
+  inner split reconstructs `outer.analysis`, and no embedded inner ordinal can
+  enter `outer.assessment`.
+- Nested compilation eagerly validates and retains one compact inner partition
+  per outer unit. This uses `O(k_outer · n)` retained ordinal state for ordinary
+  one-repeat K-fold, rather than hiding fallible inner compilation behind lazy
+  access. The canonical assignment encoding covers the outer split and every
+  embedded inner unit; ordinary `PlanReceipt` verification therefore covers the
+  complete nested allocation.
+
 **Holdout and Monte Carlo.**
 
 - Compute the named-role size `q` by §4.9. Fisher–Yates shuffle `[0, n)` once per unit; the first `q` ordinals form the named role and the remaining ordinals form the other role. Sort both selections before constructing the split.
@@ -551,6 +589,7 @@ v0.1 (ordered by dependency). The `Cov` column is the type-level coverage capabi
 | `KFold.stratified(k, strata)` | 〃 | **`ExactOnce`** | ±1 count bound, provable (§4.6) |
 | `KFold.grouped(k, groups)` | 〃 | **`ExactOnce`** | group atomicity absolute; balance best-effort |
 | `KFold.groupedStratified(k, g, s)` | 〃 | **`ExactOnce`** | atomicity absolute; balance best-effort, diagnosed |
+| `NestedCrossValidation(kOuter, kInner)` and label-aware variants | `Plan[NestedFold, _]` | **`ExactOnce`** | embedded inner `ExactOnce` plan per outer fold; one seed; full receipt |
 | `.repeat(r)` combinator | shape `(r, k)` | **`Exact`** | drops `ExactOnce`; independent child streams (§4.10) |
 | `LeaveOneOut` / `LeaveOneGroupOut` | 〃 | **`ExactOnce`** | degenerate KFold; O(1) state (§4.8) |
 | `Bootstrap` / `GroupedBootstrap` policy presets | `Plan[Split[Draw], Coverage]` | `Coverage` | policy named; assessment = OOB; grouped draws exactly `g` whole clusters (§4.6) |
@@ -560,8 +599,6 @@ v0.1 (ordered by dependency). The `Cov` column is the type-level coverage capabi
 | `PermutationDesign.within(blocks, t)` | 〃 | `Coverage` | exchangeability blocks |
 
 Post-v0.1: rolling-origin / time-series windows, balanced/blocked bootstrap, two-level (nested-group) designs, two-stage grouped bootstrap. Rolling-origin is the motivating *counterexample* for the `Coverage` type parameter — it leaves its initial analysis window unassessed and so must compile to `Coverage`, never `Exact` (alder D19 names it explicitly). Having the capability in the type before that design exists is the point.
-
-Nested CV requires **no special design**: the consumer compiles an inner design against each outer analysis set's own `IndexSpace` (of size m = analysis size), then embeds the inner ordinals through the outer `Selection` by composition. `Selection ∘ Selection = Selection` (§4.2) is precisely what guarantees inner folds cannot touch outer assessment rows — the closure table is the proof obligation, and law 1 plus law 3 discharge it.
 
 ## 6. Verification (`resample4s-laws` + test suites)
 
@@ -584,6 +621,12 @@ Published module (ScalaCheck at compile scope, like alder-laws) so consumers can
 13. **Injection factorization** — every `Injection` equals `sel.after(perm)` for its unique `factor` decomposition.
 14. **Backing transparency** — equal partitions/selections have equal equality/hash/encoding behavior under explicit assignments, `SingletonIdentity`, `Explicit`, `Block`, `ComplementBlock`, `LabelClasses`, and `ComplementOf`; complementing a complement returns the original semantic selection, and the specialized `ComplementOf` double-complement returns the same base value.
 15. **Design-extension conformance** — a general definition is total and deterministic over its declared shape, observes its `PlanCost`, and changes its canonical assignment encoding whenever one public unit changes. An exact-partition definition additionally inherits laws 2, 3, and 9 from core-derived splits. Compile-time negative tests prove that `general` cannot produce `Coverage.Exact`.
+16. **Nested-CV expansion and exclusion** — a nested design has the same outer
+    allocation as its standalone K-fold expansion; each embedded inner plan is
+    the direct inner K-fold composed through its outer analysis; inner
+    assessments reconstruct that outer analysis exactly once and remain
+    disjoint from the outer assessment. Label recoding leaves both levels,
+    derived seeds, fingerprints, and receipts unchanged.
 
 ### 6.2 Statistical suite — calibrated, not universal
 
@@ -599,7 +642,7 @@ Explicitly **not** laws, run with fixed seed sets and stated confidence bounds:
 
 - **Exhaustive oracles.** For small `n`, `k`, and label configurations, enumerate every legal allocation and compare: the exact plain/stratified K-fold deals from §4.10; exact minimum `J*` and zero-safe additive regret for grouped-stratified allocation; exact minimum fold-size imbalance for grouped allocation; lexicographic rank/unrank round trips and complete enumeration for `Jackknife.deleteD.exhaustive`; sampled-delete-*d* ranks against the same unranking table; every generated `Permutation` against the full symmetric group on `n ≤ 8`.
 - **Extension oracles.** A test-only general design and exact-partition design run through the public SPI. Deliberately perturbed generators, encoders, cost declarations, and partitions demonstrate that each conformance check bites; a compile-time negative fixture demonstrates that the general route cannot forge `Coverage.Exact`.
-- **Adversarial degeneracies.** `n ∈ {0,1,2}`, `k ∈ {1, n−1, n, n+1}`, single-member strata, one group covering everything, all-distinct groups, empty OOB, `C(n,d)` overflow.
+- **Adversarial degeneracies.** `n ∈ {0,1,2}`, `k ∈ {1, n−1, n, n+1}`, an inner fold count larger than an outer analysis, too few remaining groups for inner grouped K-fold, single-member strata, one group covering everything, all-distinct groups, empty OOB, `C(n,d)` overflow.
 - **Golden fixtures** pin exact outputs per `(design, seed, n)` on all three platforms. They are **compatibility locks** — they detect drift, they prove nothing about correctness, and they must never be the only evidence for a design. Every design ships oracle or law coverage in addition.
 
 ### 6.4 Cost guardrails
@@ -681,7 +724,13 @@ What `alder-resampling` will do with resample4s — recorded here so the boundar
 **Flagged conflicts for alder to resolve (not resample4s decisions):**
 
 1. Alder's ratified PRD.json currently homes the `Resampler` protocol and splitting inside `alder-data`. Adopting resample4s means an alder PRD amendment: `alder-data` (or a thin `alder-resampling`) *interprets* resample4s plans instead of owning splitting. Alder's forbidden-dependency list must whitelist `resample4s-core` (zero-dep, so this is cheap).
-2. `notes3.txt` sketches `Workflow(features, learner)` and `NestedCrossValidation.run(...)`; alder's ratified D3 removed `Workflow` (a workflow *is* `featureMap.learnWith(learner)`). The notes3 surface is aspiration, not spec. The three distinct prediction products it rightly demands — `OutOfFoldPredictions`, `ModelPredictions`, `ExternalPredictions` — are alder result types; resample4s's contribution is the `Plan`/`Split`/`UnitKey`/`Coverage` provenance that makes them constructible without leakage.
+2. `notes3.txt` sketches `Workflow(features, learner)` and
+   `NestedCrossValidation.run(...)`; Alder's ratified D3 removed `Workflow` (a
+   workflow *is* `featureMap.learnWith(learner)`). Resample4s now owns
+   `NestedCrossValidation(...).compile` only as a data-blind ordinal design. The
+   three prediction products in the sketch — `OutOfFoldPredictions`,
+   `ModelPredictions`, and `ExternalPredictions` — plus all fitting, tuning, and
+   scoring remain Alder result and execution concerns.
 3. Alder is under active concurrent development (kernel plan-normalization in flight). Integration is a later phase gated on `alder-data` existing; resample4s's *development* does not block on it, though resample4s's *surface freeze* does (PLAN phase 5, §12 D9).
 
 ## 10. Remaining open decisions
@@ -736,3 +785,4 @@ Resolutions from three independent review passes on 2026-07-25, beginning with P
 | **D28** | `Int`-bounded rejection uses primitive unsigned 64-bit arithmetic, and shuffle-split stops once the named prefix set is fixed before emitting both sorted roles with one membership scan. Both kernels must remain exactly equivalent to the previous `BigInt` rejection and complete Fisher–Yates-plus-sort definitions for every seed. | JFR showed `BigInt` division/allocation and dual array sorting dominated Monte Carlo. The optimized kernels remove representation work without changing random words, accepted draws, child-stream state, role membership, golden fixtures, or the public O(n) per-unit contract. |
 | **D29** | Public ergonomics must preserve the same algebra and guarantees. Bootstrap exposes named `unconditional`, `redrawing`, and `failOnEmptyOob` policy presets instead of a silent default; convenience constructors for descriptors, no-label definitions, and labels expand exactly into the validated core; `GeneralPlanSpec` is total once its components are validated; compiler-diagnostic and expansion-equivalence probes join the release gate. | The pre-freeze usability review found that policy was consequential but hidden, while callers transported redundant `None`, array-length, descriptor, and impossible-error proof plumbing. Exact conveniences make common valid programs direct without widening coverage, erasing errors, duplicating semantics, or changing receipts. |
 | **D30** | `resample4s` is the final pre-publication identity. Packages, artifacts, canonical framing tags, benchmark protocol/library labels, documentation, and the planned repository use it. No compatibility aliases retain the discarded `tessera` working name. | The chosen name identifies statistical resampling and Scala immediately while covering every catalogue family. No artifact has been published, so an alias would preserve a second public namespace without serving a real consumer. Canonical tags must change now as well; otherwise Resample4s receipts would permanently expose the discarded name. |
+| **D31** | Nested cross-validation is a published, data-blind design primitive. `NestedCrossValidation(kOuter, kInner)` and its label-aware variants compile the full outer/inner allocation into `Plan[NestedFold, Coverage.ExactOnce]`; inner selections are already embedded in the original population, all inner failures are preflighted as `NestedInnerFailure(outerKey, cause)`, and ordinary diagnostics, costs, fingerprints, and receipts remain available. | Composition made nested CV possible but left every caller to write `Either` traversals, seed derivation, label projection, embedding, and audit plumbing. That is library-owned proof bookkeeping. A single exact expansion of the existing K-fold algebra makes the common valid program direct without moving fitting or tuning into Resample4s or weakening leakage guarantees. |

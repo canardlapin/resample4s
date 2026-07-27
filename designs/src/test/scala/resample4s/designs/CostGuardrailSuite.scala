@@ -101,6 +101,36 @@ final class CostGuardrailSuite extends munit.FunSuite:
     assertEquals(last.analysis.domain, n - 1)
   }
 
+  test("nested K-fold declares retained inner partitions and receipt work") {
+    val n = 10000
+    val outerFolds = 5
+    val innerFolds = 4
+    val compiled =
+      right(
+        NestedCrossValidation(outerFolds, innerFolds)
+          .compile(
+            right(IndexSpace.of(n)),
+            Seed.fromLong(14L)
+          )
+      )
+
+    assertEquals(
+      compiled.cost.residentElementsUpperBound,
+      10L * n + 2L * outerFolds
+    )
+    assertEquals(compiled.cost.workPerUnitUpperBound, 1L)
+    assertEquals(
+      compiled.cost.receiptWorkPerUnitUpperBound,
+      n.toLong + innerFolds.toLong * (n - n / outerFolds)
+    )
+    compiled.plan.iterator.foreach { (_, nested) =>
+      assertEquals(
+        nested.innerCost.residentElementsUpperBound,
+        2L * nested.outer.analysis.domain
+      )
+    }
+  }
+
   test("exhaustive delete-d stays compact at the budget edge") {
     val n = 25
     val delete = 4

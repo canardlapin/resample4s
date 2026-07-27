@@ -1,7 +1,6 @@
 package resample4s.designs
 
 import resample4s.core.*
-import resample4s.examples.NestedCrossValidation
 import scala.compiletime.testing.typeCheckErrors
 
 final class CrossValidationSuite extends munit.FunSuite:
@@ -449,38 +448,31 @@ def illegal(
 
   test("nested selection composition cannot reach the outer assessment") {
     val n = 12
-    val outer =
+    val nested =
       right(
-        KFold(3).compile(
+        NestedCrossValidation(3, 2).compile(
           right(IndexSpace.of(n)),
           Seed.fromLong(101L)
         )
       ).plan
-    outer.iterator.foreach { (_, outerSplit) =>
-      val inner =
-        right(
-          KFold(2).compile(
-            right(IndexSpace.of(outerSplit.analysis.domain)),
-            Seed.fromLong(202L)
-          )
-        ).plan
-      inner.iterator.foreach { (_, innerSplit) =>
-        val embedded: Selection =
-          right(outerSplit.analysis.after(innerSplit.assessment))
+    nested.iterator.foreach { (_, fold) =>
+      fold.inner.iterator.foreach { (_, innerSplit) =>
         assertEquals(
-          right(embedded.intersection(outerSplit.assessment)).domain,
+          right(
+            innerSplit.assessment.intersection(
+              fold.outer.assessment
+            )
+          ).domain,
           0
+        )
+        assertEquals(
+          right(
+            innerSplit.analysis.union(innerSplit.assessment)
+          ),
+          fold.outer.analysis
         )
       }
     }
-    assertEquals(
-      NestedCrossValidation.verifyExclusion(
-        outer,
-        innerFolds = 2,
-        Seed.fromLong(202L)
-      ),
-      Right(true)
-    )
   }
 
   private def assertGroupAtomic(

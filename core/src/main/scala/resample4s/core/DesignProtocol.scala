@@ -320,6 +320,27 @@ final class DesignDefinition[+A, +Cov <: Coverage] private (
         compileValidated(space, seed, context)
 
 object DesignDefinition:
+  /** Internal route for a design combinator whose coverage capability is
+    * inherited from an already-validated source plan.
+    *
+    * Public consumer definitions still use `general`, `exactPartitions`, or
+    * `exactOncePartitions`; this route does not let an arbitrary generator
+    * assert exact coverage.
+    */
+  private[resample4s] def derived[A, Cov <: Coverage](
+      descriptor: DesignDescriptor,
+      labels: IArray[Labels]
+  )(
+      build: BuildContext => Either[DesignError, Compiled[A, Cov]]
+  ): DesignDefinition[A, Cov] =
+    val owned =
+      Vector.tabulate(labels.length)(labels(_))
+    new DesignDefinition(
+      descriptor,
+      owned,
+      (_, _, context) => build(context)
+    )
+
   def general[A](
       descriptor: DesignDescriptor
   )(

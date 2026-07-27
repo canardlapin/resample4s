@@ -3,6 +3,7 @@ package resample4s.laws
 import org.scalacheck.Prop
 import scala.reflect.ClassTag
 import resample4s.core.*
+import resample4s.designs.NestedFold
 
 /** Universal algebraic laws for finite reindexings. */
 object ReindexingLaws:
@@ -242,6 +243,92 @@ object PlanLaws:
           fold += 1
         repeat += 1
       valid
+    }
+
+  private def membership(
+      selection: Selection,
+      populationSize: Int
+  ): Option[Array[Boolean]] =
+    if selection.codomain != populationSize then None
+    else
+      val result = Array.fill(populationSize)(false)
+      var index = 0
+      var valid = true
+      while index < selection.domain && valid do
+        selection.at(index) match
+          case Left(_) => valid = false
+          case Right(ordinal) =>
+            if ordinal < 0 || ordinal >= populationSize then valid = false
+            else result(ordinal) = true
+        index += 1
+      if valid then Some(result) else None
+
+/** Universal laws for embedded nested cross-validation plans. */
+object NestedCrossValidationLaws:
+  /** Every inner role stays inside its outer analysis selection. */
+  def exclusion[Cov <: Coverage](
+      plan: Plan[NestedFold, Cov]
+  ): Prop =
+    Prop.secure {
+      plan.iterator.forall { (_, nested) =>
+        nested.inner.iterator.forall { (_, inner) =>
+          (
+            inner.analysis.intersection(nested.outer.assessment),
+            inner.assessment.intersection(nested.outer.assessment)
+          ) match
+            case (Right(analysisOverlap), Right(assessmentOverlap)) =>
+              analysisOverlap.domain == 0 &&
+                assessmentOverlap.domain == 0
+            case _ => false
+        }
+      }
+    }
+
+  /** Inner assessments partition the outer analysis exactly once, and every
+    * inner split reconstructs that outer analysis.
+    */
+  def innerCoverage[Cov <: Coverage](
+      plan: Plan[NestedFold, Cov],
+      populationSize: Int
+  ): Prop =
+    Prop.secure {
+      plan.iterator.forall { (_, nested) =>
+        if nested.outer.analysis.codomain != populationSize ||
+            nested.outer.assessment.codomain != populationSize
+        then false
+        else
+          val expected = membership(nested.outer.analysis, populationSize)
+          val counts = Array.fill(populationSize)(0)
+          var valid = expected.nonEmpty
+          val innerUnits = nested.inner.iterator
+          while innerUnits.hasNext && valid do
+            val (_, inner) = innerUnits.next()
+            valid =
+              inner.analysis.codomain == populationSize &&
+                inner.assessment.codomain == populationSize &&
+                (
+                  inner.analysis.union(inner.assessment) match
+                    case Right(reconstructed) =>
+                      reconstructed == nested.outer.analysis
+                    case Left(_) => false
+                )
+            var index = 0
+            while index < inner.assessment.domain && valid do
+              inner.assessment.at(index) match
+                case Left(_) => valid = false
+                case Right(ordinal) =>
+                  if ordinal < 0 || ordinal >= populationSize then
+                    valid = false
+                  else counts(ordinal) += 1
+              index += 1
+          var ordinal = 0
+          while ordinal < populationSize && valid do
+            valid =
+              counts(ordinal) ==
+                (if expected.exists(_(ordinal)) then 1 else 0)
+            ordinal += 1
+          valid
+      }
     }
 
   private def membership(

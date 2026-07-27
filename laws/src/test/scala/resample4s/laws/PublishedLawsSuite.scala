@@ -66,6 +66,17 @@ final class PublishedLawsSuite extends munit.FunSuite:
     check(PlanLaws.reconstruction(plan, 12))
   }
 
+  test("published nested-CV laws cover exclusion and inner reconstruction") {
+    val space = right(IndexSpace.of(15))
+    val plan =
+      right(
+        NestedCrossValidation(5, 3)
+          .compile(space, Seed.fromLong(17L))
+      ).plan
+    check(NestedCrossValidationLaws.exclusion(plan))
+    check(NestedCrossValidationLaws.innerCoverage(plan, space.size))
+  }
+
   test("published grouping and stratification laws detect role violations") {
     val groups = labels(1, 1, 2, 2, 3, 3, 4, 4)
     val strata = labels(1, 2, 1, 2, 1, 2, 1, 2)

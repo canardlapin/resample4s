@@ -21,7 +21,7 @@ reason nested cross-validation cannot reach an outer assessment fold.
 
 This repository is currently `0.1.0-SNAPSHOT`. The fresh-context review and
 Alder integration gates are complete; the public surface is not frozen until
-the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.11;
+the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.12;
 rolling-origin/time-series designs are explicitly deferred.
 
 ## Example
@@ -30,33 +30,32 @@ rolling-origin/time-series designs are explicitly deferred.
 import resample4s.core.*
 import resample4s.designs.*
 
-def firstNestedAssessment(
-    outerSplit: Split[Selection]
-): Either[DesignError | DomainMismatch, Selection] =
-  for
-    innerSpace <- IndexSpace.of(outerSplit.analysis.domain)
-    inner <- KFold(4).compile(innerSpace, Seed.fromLong(99L))
-    embedded <- outerSplit.analysis.after(inner.plan.first.assessment)
-  yield embedded
-
-val embeddedAssessment =
+val nested =
   for
     space <- IndexSpace.of(120)
-    outer <- KFold(5).compile(space, Seed.fromLong(42L))
-    embedded <- firstNestedAssessment(outer.plan.first)
-  yield embedded
+    compiled <- NestedCrossValidation(
+      outerFolds = 5,
+      innerFolds = 4,
+    ).compile(space, Seed.fromLong(42L))
+  yield compiled
 
-// embeddedAssessment is an Either whose successful value is statically a
-// Selection over the original space.
+val firstInnerAssessment =
+  nested.map(_.plan.first.inner.first.assessment)
+
+// The successful value is a Selection over the original 120-row population.
 ```
 
-The complete, cross-platform-compiled version is
+Use `stratified`, `grouped`, or `groupedStratified` when both levels should use
+the corresponding label-aware K-fold allocator. The standalone source is
+compiled on JVM, Scala.js, and Scala Native:
 [`examples/NestedCrossValidation.scala`](examples/NestedCrossValidation.scala).
 
 ## Catalogue
 
 The `resample4s-designs` module includes:
 
+- nested K-fold with complete embedded inner plans, including stratified,
+  grouped, and grouped-stratified variants;
 - named-role holdout and Monte Carlo splits;
 - plain, stratified, grouped, and grouped-stratified K-fold;
 - leave-one-out and leave-one-group-out;

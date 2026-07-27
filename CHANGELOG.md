@@ -28,7 +28,10 @@ Initial cross-platform release candidate.
   multiplicity/order/OOB semantics, permutation bijectivity and block
   preservation, reconstruction, recoding equivalence, and assignment
   perturbation.
-- A cross-platform-compiled nested-cross-validation composition example.
+- Primitive nested cross-validation with plain, stratified, grouped, and
+  grouped-stratified constructors. Each outer fold carries an embedded,
+  exactly-covered inner plan with deterministic seed derivation, diagnostics,
+  cost accounting, and receipt coverage.
 - MiMa and TASTy-MiMa configuration with `0.1.0` recorded as the first
   compatibility baseline for subsequent releases.
 - A semantic-parity benchmark harness comparing complete canonical split

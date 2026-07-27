@@ -123,6 +123,14 @@ maintainers need when changing code.
     artifact ids, canonical receipt framing, benchmark protocol, and repository
     move together. No compatibility alias preserves the discarded `tessera`
     working name because no external artifact or consumer namespace exists.
+37. Nested cross-validation is a built-in, data-blind design rather than a
+    test-only recipe. The convenience constructors expand into the existing
+    K-fold allocators and selection composition. The top-level plan preserves
+    outer `ExactOnce`; every `NestedFold` contains an embedded inner
+    `ExactOnce` plan plus its derived seed, diagnostics, and cost. Compilation
+    performs every fallible inner build up front, and the normal design
+    fingerprint and receipt cover the complete nested allocation. Fitting,
+    tuning, predictions, and scores remain consumer responsibilities.
 
 ## Evidence policy
 
