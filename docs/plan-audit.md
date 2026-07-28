@@ -1,6 +1,6 @@
 # PLAN completion audit
 
-Audit date: 2026-07-26
+Audit date: 2026-07-27
 
 This record maps each execution phase to current authoritative evidence. A
 green aggregate count is not treated as proof unless the named gate is covered.
@@ -60,8 +60,8 @@ green aggregate count is not treated as proof unless the named gate is covered.
 - Cost guardrails, README, honest-limit Scaladoc, design decisions, CI workflow,
   compatibility policy, type-discipline review, and release-readiness evidence
   exist.
-- The local CI-equivalent test gate passes 35 core, 48 designs, and 8 laws tests
-  on each platform, 273 total.
+- The current local CI-equivalent test gate passes 36 core, 64 designs, and 10
+  laws tests on each platform, 330 total.
 - The user-authorized fresh-context review of `3dc2d77` is complete. Its
   receipt, oracle/diagnostic, and public-law findings were fixed rather than
   waived; the review and resolutions are recorded under `docs/reviews/`.
@@ -88,8 +88,21 @@ green aggregate count is not treated as proof unless the named gate is covered.
   cross-language profiles each validate 120 raw rows and 24 aggregates.
   Published JVM jars contain only `resample4s/` classes, and a clean external
   consumer resolves `resample4s-laws` on JVM, Scala.js, and Scala Native.
-- Open: hosted CI cannot run until a Git remote exists. Local evidence is not
-  mislabeled as hosted-CI evidence.
+- Hosted JVM, Scala.js, Scala Native, and compatibility CI passed on commit
+  `81e4a22`.
+
+## Phase 4.5 — partially complete
+
+- The fixed-allocation contract is specified in PRD v0.13 and PLAN phase 4.5.
+- Compact canonical split descriptors, `FixedSplits`, canonical-label
+  `FixedPartitions`, public-law reuse, receipt mismatch evidence, cost
+  guardrails, negative capability fixtures, and platform-stable canonical
+  bytes are implemented.
+- `testAll`, `compatibilityAll`, `publishLocalAll`, all nine Scaladoc tasks, and
+  `benchmarkCheck` pass locally for the changed surface.
+- The audit explicitly defers `certifyExact*`; arbitrary splits cannot gain
+  exact coverage without choosing a new canonical fold order.
+- The ScalaFIM consumer rehearsal and changed-surface hosted CI remain open.
 
 ## Phase 5 — complete
 
@@ -104,6 +117,5 @@ green aggregate count is not treated as proof unless the named gate is covered.
   baseline, and the snapshot compatibility tasks are green.
 - The changelog remains intentionally `Unreleased`; the build remains
   `0.1.0-SNAPSHOT`; no tag exists.
-- Stable finalization requires the Phase 4 review and hosted-CI gates, followed
-  by the final full gate, changelog date/version freeze, `v0.1.0` tag, and push
-  to a configured remote.
+- Stable finalization requires Phase 4.5 and its consumer rehearsal, followed
+  by the final full gate, changelog date/version freeze, `v0.1.0` tag, and push.

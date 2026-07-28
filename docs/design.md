@@ -131,6 +131,15 @@ maintainers need when changing code.
     performs every fallible inner build up front, and the normal design
     fingerprint and receipt cover the complete nested allocation. Fitting,
     tuning, predictions, and scores remain consumer responsibilities.
+38. Fixed external allocations have two distinct constructors. `FixedSplits`
+    retains arbitrary repeat-major `Split[Selection]` units and returns ordinary
+    `Coverage`. `FixedPartitions` accepts canonical `Labels` assignments and
+    reaches `ExactOnce` or `Exact` only through the core partition routes.
+    Fixed-split canonical descriptors stream retained selections without a
+    second integer tree; fixed partitions reuse the existing owned-label and
+    exact-assignment framing. `certifyExact*` is deferred because canonicalizing
+    fold identity would change observable unit order rather than merely add
+    proof.
 
 ## Evidence policy
 
@@ -150,6 +159,8 @@ The implementation-context type-discipline review is recorded under
 published-law gaps. Decisions 30–32 are the remediation; the independent
 review is not self-approved or waived. The public-usability reconciliation is
 recorded in
-`docs/reviews/scala-type-discipline-usability-2026-07-26.md`. Hosted CI still
-cannot be green until the repository has a remote, so no stable release tag
-may yet be created.
+`docs/reviews/scala-type-discipline-usability-2026-07-26.md`. Hosted JVM,
+Scala.js, Scala Native, and compatibility CI passed on commit `81e4a22`. The
+stable release remains open because the fixed-allocation tranche, its
+independent review, the ScalaFIM consumer rehearsal, and the final release
+freeze have not completed.

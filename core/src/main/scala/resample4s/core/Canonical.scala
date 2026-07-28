@@ -245,6 +245,27 @@ object DescriptorValue:
       out.variantUnchecked(tag)
       value.write(out)
 
+  private final class SelectionSplitValue(
+      value: Split[Selection]
+  ) extends DescriptorValue:
+    private[resample4s] def write(out: CanonicalWriter): Unit =
+      out.variantUnchecked("selection-split")
+      writeSelection("analysis", value.analysis, out)
+      writeSelection("assessment", value.assessment, out)
+
+  private def writeSelection(
+      role: String,
+      value: Selection,
+      out: CanonicalWriter
+  ): Unit =
+    out.variantUnchecked(role)
+    out.int(value.codomain)
+    out.beginSequenceUnchecked(value.domain)
+    var index = 0
+    while index < value.domain do
+      out.int(value.unsafeAt(index))
+      index += 1
+
   def int(value: Int): DescriptorValue = new IntValue(value)
   def long(value: Long): DescriptorValue = new LongValue(value)
   def bool(value: Boolean): DescriptorValue = new BoolValue(value)
@@ -278,6 +299,16 @@ object DescriptorValue:
       value: DescriptorValue
   ): DescriptorValue =
     new VariantValue(tag, value)
+
+  /** Compact semantic descriptor value for an immutable selection split.
+    *
+    * The value retains the validated split and streams both roles directly.
+    * It does not construct or retain one descriptor node per ordinal.
+    */
+  private[resample4s] def selectionSplit(
+      value: Split[Selection]
+  ): DescriptorValue =
+    new SelectionSplitValue(value)
 
 opaque type AlgorithmId = String
 

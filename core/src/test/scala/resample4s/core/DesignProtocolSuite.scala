@@ -428,6 +428,44 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
     assertEquals(exactDigests.distinct.size, 1)
   }
 
+  test("compact fixed-split descriptor framing is extensional and role-aware") {
+    val space = right(IndexSpace.of(4))
+    val partition =
+      right(FoldPartition.fromAssignments(4, 2, ints(0, 1, 0, 1)))
+    val explicitAssessment = right(Selection.from(ints(1, 3), space))
+    val blockAssessment = right(partition.block(1))
+    val analysis = explicitAssessment.complement
+    val explicitSplit = right(Split.of(analysis, explicitAssessment))
+    val blockSplit = right(Split.of(analysis, blockAssessment))
+
+    def digest(split: Split[Selection]): DigestValue =
+      val descriptor =
+        right(
+          DesignDescriptor.named(
+            "fixed-split-framing-test/v1",
+            "unit" -> DescriptorValue.selectionSplit(split)
+          )
+        )
+      right(
+        DigestAlgorithm.fnv1a64.digest(
+          CanonicalDesign.designChunks(descriptor, None).iterator
+        )
+      )
+
+    assertEquals(digest(explicitSplit), digest(blockSplit))
+
+    val changedAssessment = right(Selection.from(ints(2, 3), space))
+    val changedAnalysis = right(Selection.from(ints(0, 1), space))
+    val changed = right(Split.of(changedAnalysis, changedAssessment))
+    assertNotEquals(digest(explicitSplit), digest(changed))
+
+    val wider = right(IndexSpace.of(5))
+    val widerAnalysis = right(Selection.from(ints(0, 2), wider))
+    val widerAssessment = right(Selection.from(ints(1, 3), wider))
+    val widerSplit = right(Split.of(widerAnalysis, widerAssessment))
+    assertNotEquals(digest(explicitSplit), digest(widerSplit))
+  }
+
   test("canonical design bytes have a pre-hash compatibility fixture") {
     val descriptor =
       right(

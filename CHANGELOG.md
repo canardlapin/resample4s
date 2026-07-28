@@ -32,6 +32,9 @@ Initial cross-platform release candidate.
   grouped-stratified constructors. Each outer fold carries an embedded,
   exactly-covered inner plan with deterministic seed derivation, diagnostics,
   cost accounting, and receipt coverage.
+- Fixed external allocation designs: arbitrary repeat-major `FixedSplits` with
+  ordinary coverage, and canonical-label `FixedPartitions` with one-repeat
+  `ExactOnce` or repeated `Exact` evidence.
 - MiMa and TASTy-MiMa configuration with `0.1.0` recorded as the first
   compatibility baseline for subsequent releases.
 - A semantic-parity benchmark harness comparing complete canonical split

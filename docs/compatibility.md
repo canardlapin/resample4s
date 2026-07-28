@@ -21,3 +21,10 @@ sbt -batch compatibilityAll
 MiMa covers binary linkage and TASTy-MiMa covers Scala 3 retyping
 compatibility. Neither tool proves semantic compatibility; behavioral laws,
 golden locks, and release notes remain separate requirements.
+
+The current `0.1.0-SNAPSHOT` surface is not frozen while fixed external
+allocations are being added. The fixed-split descriptor schema begins at
+`fixed-splits/v1`, and the fixed-partition design schema begins at
+`fixed-partitions/v1`. Their golden canonical bytes and receipts are part of
+the semantic compatibility evidence even though MiMa and TASTy-MiMa cannot
+inspect that behavior.

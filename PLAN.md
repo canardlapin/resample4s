@@ -1,8 +1,8 @@
 # Resample4s — Execution Plan
 
-Companion to `PRD.md` (v0.12). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Alder is under concurrent development by another agent — nothing here touches the alder repo until phase 5, and phase 5 begins with a fresh sync of alder's state.
+Companion to `PRD.md` (v0.13). Phased; every phase ends with a verification gate (evidence, not assertion). Sized for solo development in the alder/gale house style. Cross-repository consumer rehearsals begin only after the corresponding Resample4s surface passes its own release gate.
 
-Revised 2026-07-26 after three independent PRD review passes, the implementation type-discipline pass, Alder integration, the phase-4 fresh-context assurance review, the semantic-parity Python/R benchmark tranche, exact-equivalent Monte Carlo/RNG kernel profiling, two public-surface usability passes, the Resample4s name ratification, and the primitive nested-CV decision (PRD §12 D24–D31).
+Revised 2026-07-27 after the fixed-allocation contract audit and the earlier independent PRD reviews, implementation type-discipline pass, Alder integration, fresh-context assurance review, semantic-parity benchmark tranche, kernel profiling, usability passes, identity ratification, and primitive nested-CV decision (PRD §12 D24–D32).
 
 ## Phase 0 — Bootstrap (small)
 
@@ -96,6 +96,37 @@ review findings resolved or explicitly waived in `docs/design.md`; the smoke
 and standard benchmark profiles produce validated raw rows, aggregates,
 environment manifests, and interpretation-bounded reports.
 
+## Phase 4.5 — Fixed external allocations
+
+- Add a compact core-owned descriptor node that streams
+  `Split[Selection]` values without constructing a second integer-value tree.
+  Its versioned encoding includes population codomain, plan shape,
+  repeat-major unit order, analysis, and assessment.
+- Add `FixedUnitCountMismatch` and `FixedUnitPopulationMismatch`; retain the
+  existing partition/shape errors for canonical assignment inputs.
+- Add `FixedSplits.once` and `FixedSplits.of`. Copy the outer unit array, retain
+  immutable split values, validate common codomain, compile through
+  `DesignDefinition.general`, ignore the seed for assignments, and return only
+  `Coverage`.
+- Add `FixedPartitions.once(Labels)` and
+  `FixedPartitions.repeated(IArray[Labels])`. Copy the outer label array,
+  require common population size and fold count, derive `FoldPartition` values,
+  and use only `exactOncePartitions` or `exactPartitions`.
+- Do not add `certifyExact*` in v0.1. Do not add raw train/test integer
+  constructors, caller fold names, row identities, or consumer metadata.
+- Extend published laws and catalogue tests with arbitrary partial/overlapping
+  plans, exact reconstruction, label recoding, seed invariance, typed capability
+  negatives, descriptor/assignment receipts, backing-transparent canonical
+  bytes, aliasing, no-late-failure, and counted costs.
+- Update the README, Scaladoc, compatibility policy, release evidence, and
+  catalogue before the public surface freezes.
+
+**Gate:** `testAll`, `compatibilityAll`, `benchmarkCheck`, JVM Scaladoc, and
+published-law consumer evidence pass; fixed canonical bytes and receipts agree
+on JVM, Scala.js, and Scala Native; changed fixed splits report design drift,
+changed fixed partitions report label drift, independent assignment digests
+change, and seed-only changes verify.
+
 ## Phase 5 — Alder integration spike (gated on alder-data existing)
 
 - Re-survey alder first (it is moving). Propose the alder PRD amendment: resampling interpretation moves to a resample4s-backed module; whitelist `resample4s-core` in alder's dependency policy.
@@ -122,4 +153,7 @@ Rolling-origin / time-series designs are **post-v0.1 unconditionally** (PRD §12
 - Phases 0–4 have no external dependencies and can proceed immediately.
 - Phases 2 and 3 are independent **after phase 1**, which is true only because `Design` and `Labels` land in phase 1 (PRD §12 D8). If either slips out of phase 1, phase 3 acquires a dependency on phase 2 and the interleaving is off.
 - Phase 5 is the only cross-repo phase. It can slip without blocking development, but it gates the surface freeze — see phase 6.
+- Phase 4.5 must finish before the ScalaFIM fixed-allocation rehearsal. That
+  rehearsal is evidence for the new surface, not permission to recreate a
+  second fold algebra downstream.
 - Throughout: never weaken a law to make a design pass — fix the design. And never promote a distributional check to a law: if it needs a tolerance, it belongs in the statistical suite (PRD §6.2).

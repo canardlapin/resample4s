@@ -1,19 +1,23 @@
 # Release readiness
 
-Last verified: 2026-07-26
+Last verified: 2026-07-27
 
 ## Completed evidence
 
-- `sbt -batch testAll`: 35 core, 48 designs, and 8 laws tests passed
-  independently on JVM, Scala.js, and Scala Native (273 total).
-- `sbt -batch compatibilityAll`: all nine MiMa and TASTy-MiMa tasks passed.
-  The previous-artifact set is intentionally empty for the first `0.1.0`
-  baseline and becomes `0.1.0` for later versions.
-- `sbt -batch 'coreJVM/doc' 'designsJVM/doc' 'lawsJVM/doc'`: all public API
-  documentation generated successfully.
+- `sbt -batch testAll`: 36 core, 64 designs, and 10 laws tests passed
+  independently on JVM, Scala.js, and Scala Native (330 total), including the
+  fixed-allocation tranche.
+- `sbt -batch compatibilityAll`: all nine TASTy-MiMa tasks passed. The nine
+  binary MiMa tasks correctly reported an empty previous-artifact set for the
+  first `0.1.0` baseline; later versions compare against `0.1.0`.
+- Cross-platform Scaladoc generated successfully for all nine published
+  projects. Scala Native reports only the toolchain's known unsupported
+  `-Xplugin` option.
 - `sbt -batch publishLocalAll`: the core, designs, and laws binaries, source
   archives, API-documentation archives, POMs, and Ivy descriptors published
-  locally for all three platforms.
+  locally for all three platforms. This completed before a documentation-only
+  link correction in `Fixed.scala`; the managed environment denied the
+  requested cache re-publish after that correction.
 - A clean temporary consumer, containing no source-project dependency, resolved
   `resample4s-laws` from the local artifact repository and passed its published
   exact-coverage law on JVM, Scala.js, and Scala Native.
@@ -49,6 +53,15 @@ Last verified: 2026-07-26
   benchmark profiles each validate 120 raw rows and 24 aggregates. The JVM
   core, designs, and laws jars contain 343, 83, and 20 `resample4s/` entries
   respectively and no `tessera/` entries.
+- Hosted CI run `30256827936` passed the JVM, Scala.js, Scala Native, and
+  compatibility jobs on commit `81e4a22`.
+- Fixed allocations have platform-identical canonical byte and digest
+  fixtures. Behavioral tests cover partial and overlapping external splits,
+  omitted rows, repeated exact partitions, defensive ownership, eager typed
+  failures, seed-invariant assignment receipts, component-specific mismatch
+  precedence, negative `ExactOnce` compilation, and declared cost bounds.
+- `sbt -batch benchmarkCheck` passed its three protocol tests and emitted all
+  seven smoke measurements after the fixed-allocation implementation.
 
 ## Published dependency graph
 
@@ -71,11 +84,12 @@ _native0.5_3
 
 ## Open gates
 
-1. Hosted GitHub Actions CI has not run because the repository has no remote;
-   the equivalent local JVM, Scala.js, Scala Native, and compatibility tasks
-   are green, but local evidence is not represented as hosted-CI evidence.
-2. `CHANGELOG.md` remains `Unreleased`, and the build remains
-   `0.1.0-SNAPSHOT`, until hosted CI closes.
-3. No Git remote is configured, so a release tag cannot be pushed.
+1. The ScalaFIM consumer rehearsal is open; it is intentionally outside this
+   repository's writable scope.
+2. The changed public surface still needs hosted CI and an independent review;
+   `publishLocalAll` should also be repeated once to refresh the source and
+   Scaladoc archives after the documentation-only link correction.
+3. `CHANGELOG.md` remains `Unreleased`, and the build remains
+   `0.1.0-SNAPSHOT`, until those gates close.
 
 The stable tag must not be created while any item above remains open.

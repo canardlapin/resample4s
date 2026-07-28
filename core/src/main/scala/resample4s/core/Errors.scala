@@ -25,6 +25,13 @@ object DesignError:
   final case class OverlappingRoles(index: Int) extends DesignError
   final case class InvalidPlanShape(repeats: Int, foldsPerRepeat: Int)
       extends DesignError
+  final case class FixedUnitCountMismatch(expected: Int, actual: Int)
+      extends DesignError
+  final case class FixedUnitPopulationMismatch(
+      unit: UnitKey,
+      expected: Int,
+      actual: Int
+  ) extends DesignError
   final case class UnitCountExceeded(requested: BigInt, budget: Long)
       extends DesignError
   final case class InvalidFraction(num: Int, den: Int) extends DesignError

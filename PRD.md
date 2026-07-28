@@ -2,7 +2,7 @@
 
 **A pure, typed algebra of finite reindexings, partitions, and reproducible randomized designs.**
 
-- Status: proposal v0.12 (nested-CV release candidate), 2026-07-26 — revised after three independent design passes, the implementation type-discipline pass, the Alder integration spike, the phase-4 fresh-context assurance review, semantic-parity Python/R benchmarks, exact-equivalent Monte Carlo/RNG kernel profiling, two public-surface usability passes, the final pre-publication name decision, and the primitive nested-cross-validation decision (see §12 decision log)
+- Status: proposal v0.13 (fixed-allocation release candidate), 2026-07-27 — revised after the fixed-allocation contract audit, in addition to the earlier independent design passes, implementation type-discipline pass, Alder integration spike, fresh-context assurance review, semantic-parity benchmarks, kernel profiling, usability passes, identity decision, and primitive nested-cross-validation decision (see §12 decision log)
 - Name: `resample4s`. The name states the statistical domain and Scala ecosystem directly; it covers cross-validation, bootstrap, jackknife, permutation, and the shared reindexing algebra without privileging one design family.
 - Canonical repository, checkout, and artifact namespace: `resample4s`. No published coordinate or compatibility alias uses the discarded `tessera` working name.
 - Supersedes: the sibling `resample4s/resample4s.md` note dated 2026-07-23. That document described a broader, Frame4s-coupled workflow library; this repository retains the name for its extracted, data-agnostic resampling core.
@@ -412,6 +412,8 @@ Normative, and guarded by allocation and work-accounting tests (§6.4) rather th
 | `Jackknife.deleteD.sampled(d, t)` | `t` | O(t) child seeds | O(M(n) + U(n,d) + d) view |
 | `PermutationDesign(t)` | `t` | **O(t)** child seeds | O(n) regeneration |
 | `PermutationDesign.within(blocks, t)` | `t` | O(n + t) labels + child seeds | O(n) regeneration |
+| `FixedSplits(shape, units)` | `u` | O(u + M) retained split references and owned selection state | O(1) retained-unit lookup |
+| `FixedPartitions(assignments)` | `r·k` | O(r·n) canonical assignments plus O(r·n) compiled partitions | O(1) block/complement views |
 
 Laziness is what buys this. The v0.1 draft materialized every selection, which made leave-one-out and delete-1 jackknife Θ(n²) in stored indices and exhaustive delete-*d* combinatorially hopeless; the compiled LOO/delete-1 plans and the exhaustive delete-*d* generator are now O(1) resident state. A returned delete-*d* split necessarily owns its O(d) assessment.
 
@@ -426,6 +428,14 @@ Laziness is what buys this. The v0.1 draft materialized every selection, which m
 - `Bootstrap(..., OobPolicy.Redraw(a))` performs at most `a` candidate generations per unit during compilation, for O(t·a·n) worst-case work, and stores the first accepted seed. Exhaustion is a compile-time `DesignError.EmptyOutOfBag`, never a later `Plan.at` failure;
 - grouped bootstrap first indexes canonical groups and checks `g·m_max` in O(n + g), then preflights OOB from the `g` sampled group ids without expanding their rows: O(t·a·g) worst-case work under `Redraw(a)` (take `a = 1` for `Fail`); `Allow` still compiles in O(n + g + t);
 - exhaustive delete-*d* computes `C(n,d)` exactly before construction in O(d·M(n)), then either returns `UnitCountExceeded` or stores only `(n,d)`; sampled delete-*d* derives `t` child seeds and does not draw ranks during compilation.
+- `FixedSplits` validates and owns its repeat-major outer unit array at
+  construction. Compilation performs one O(M) canonical descriptor scan and
+  retains the immutable `Split[Selection]` values without copying their owned
+  selection backings;
+- `FixedPartitions` owns `r` canonical `Labels` assignments. Compilation
+  converts them to `FoldPartition` values in O(r·n), validates common
+  population size and fold count, and retains no caller fold names or raw label
+  codes.
 
 Regenerating an already-validated accepted seed is deterministic, so the lazy plan remains total without storing the draw itself. Tests instrument candidate-generation counts and assert these bounds directly.
 
@@ -577,6 +587,82 @@ This section closes the remaining catalogue-level ambiguity. “Random” below 
 - `PermutationDesign(times)` has shape `(times, 1)` and Fisher–Yates shuffles `[0, n)` once for each of `times ≥ 1` units. The resulting sequence is the `Permutation`; identity and duplicate permutations are legal.
 - `PermutationDesign.within(blocks, times)` takes exchangeability blocks from canonical `Labels`. For each unit and each canonical block, it Fisher–Yates shuffles that block's ascending members using an `(ExchangeabilityBlock, blockOrdinal)` child stream, then writes them back into that block's ascending positions. Thus every output is bijective and cannot move an ordinal across block membership.
 
+### 4.11 Fixed external allocations
+
+Fixed designs import allocations produced outside Resample4s without importing
+data, learner, run, session, subject, or display identities.
+
+`FixedSplits.once(split)` constructs a one-repeat, one-unit design.
+`FixedSplits.of(shape, units)` accepts an immutable outer array in repeat-major
+order, where linear position
+`repeat * shape.foldsPerRepeat + fold` corresponds to that `UnitKey`. The
+constructor copies the outer array, validates that its length equals
+`shape.unitCount`, and requires every split to have the same population
+codomain. It retains each immutable `Split[Selection]` without duplicating its
+owned selection backing.
+
+Fixed splits deliberately compile to
+`Plan[Split[Selection], Coverage]`. Within-unit disjointness and non-empty
+analysis are already guaranteed by `Split`; across units, assessments may
+overlap, coverage may be partial, and a row may occur in neither role. Neither
+constructor infers or asserts exact coverage.
+
+`FixedPartitions.once(assignments)` accepts one canonical `Labels` value whose
+codes assign each population ordinal to one assessment fold.
+`FixedPartitions.repeated(assignments)` accepts a non-empty immutable array of
+such values, one per repeat. `Labels` canonicalizes raw codes by the smallest
+member ordinal, so bijective caller-code changes do not change fold order,
+design identity, or receipts. All repeats must have the same population size
+and fold count, and there must be at least two non-empty folds so every analysis
+role is non-empty. The one-repeat constructor compiles through
+`DesignDefinition.exactOncePartitions`; the repeated constructor compiles
+through `exactPartitions`. No flag, cast, or unchecked assertion can strengthen
+coverage.
+
+`certifyExact` and `certifyExactOnce` are not part of v0.1. Turning arbitrary
+fixed splits into canonical partitions would either preserve caller unit order
+or recanonicalize fold identity through `Labels`; those are observably
+different plans. A caller that possesses partition evidence constructs
+`FixedPartitions` directly.
+
+Fixed allocations ignore the compilation seed when producing units, but the
+ordinary explicit seed remains in `PlanReceipt`. Recompiling the same design
+with another seed therefore produces the same plan and assignment digest.
+
+Canonical fixed-split design bytes use algorithm id `fixed-splits/v1` and a
+core-owned compact descriptor node. The node frames the population codomain,
+plan shape, repeat-major unit order, and both roles of every split while
+streaming ordinals directly from retained selections; it does not retain a
+second tree of integer descriptor values. Fixed partitions use algorithm id
+`fixed-partitions/v1`; their canonical assignment `Labels` are design-owned
+label authorities, while the exact assignment stream independently commits to
+the compiled partitions.
+
+Receipt verification follows the existing component order. Changing a
+fixed-split role, unit order, or shape reports `ReceiptComponent.Design`.
+Changing fixed-partition assignments reports `ReceiptComponent.Labels`.
+The corresponding assignment digests also differ and are tested independently;
+verification reports the earlier semantic component rather than skipping to
+`Assignment`. Changing only the stored seed still verifies because both fixed
+design families are seed-invariant.
+
+Construction and compilation use typed failures:
+
+- `FixedUnitCountMismatch(expected, actual)` for a shaped split array of the
+  wrong length;
+- `FixedUnitPopulationMismatch(unit, expected, actual)` when a fixed split has
+  a different codomain from the first unit;
+- the existing `LengthMismatch`, `PartitionPopulationMismatch`,
+  `PartitionFoldMismatch`, `InvalidFoldCount`, and `InvalidPlanShape` errors for
+  canonical assignment inputs and exact partition construction.
+
+For fixed splits, supplied state is O(u + M), compilation is O(M), lookup is
+O(1), and assignment receipt traversal is O(M). For fixed partitions, supplied
+state, compilation, and receipt traversal are O(r·n), while unit lookup returns
+O(1) block/complement views. Design fingerprinting and assignment fingerprinting
+are separate O(M) or O(r·n) streaming passes; neither materializes a complement
+or a second ordinal tree.
+
 ## 5. Design catalogue (`resample4s-designs`)
 
 v0.1 (ordered by dependency). The `Cov` column is the type-level coverage capability from §4.3. `Exact` means once per repeat; the stronger `ExactOnce` additionally proves that the plan has one repeat and is therefore admissible to Alder's `CompleteResampler` (Alder D19).
@@ -597,6 +683,9 @@ v0.1 (ordered by dependency). The `Cov` column is the type-level coverage capabi
 | `Jackknife.deleteD.exhaustive/sampled` | 〃 | `Coverage` | unit budget enforced (§4.8) |
 | `PermutationDesign(t)` | `Plan[Permutation, Coverage]` | `Coverage` | free shuffle; duplicates allowed |
 | `PermutationDesign.within(blocks, t)` | 〃 | `Coverage` | exchangeability blocks |
+| `FixedSplits.once/of` | `Plan[Split[Selection], Coverage]` | `Coverage` | arbitrary imported units; repeat-major order |
+| `FixedPartitions.once` | `Plan[Split[Selection], _]` | **`ExactOnce`** | canonical assignment labels |
+| `FixedPartitions.repeated` | `Plan[Split[Selection], _]` | **`Exact`** | one canonical assignment per repeat |
 
 Post-v0.1: rolling-origin / time-series windows, balanced/blocked bootstrap, two-level (nested-group) designs, two-stage grouped bootstrap. Rolling-origin is the motivating *counterexample* for the `Coverage` type parameter — it leaves its initial analysis window unassessed and so must compile to `Coverage`, never `Exact` (alder D19 names it explicitly). Having the capability in the type before that design exists is the point.
 
@@ -627,6 +716,10 @@ Published module (ScalaCheck at compile scope, like alder-laws) so consumers can
     assessments reconstruct that outer analysis exactly once and remain
     disjoint from the outer assessment. Label recoding leaves both levels,
     derived seeds, fingerprints, and receipts unchanged.
+17. **Fixed-allocation semantics** — fixed splits preserve supplied unit order
+    and roles without overclaiming coverage; fixed partitions satisfy exact
+    coverage and reconstruction; both families are seed-invariant, and fixed
+    partition identity is invariant under bijective raw assignment recoding.
 
 ### 6.2 Statistical suite — calibrated, not universal
 
@@ -786,3 +879,4 @@ Resolutions from three independent review passes on 2026-07-25, beginning with P
 | **D29** | Public ergonomics must preserve the same algebra and guarantees. Bootstrap exposes named `unconditional`, `redrawing`, and `failOnEmptyOob` policy presets instead of a silent default; convenience constructors for descriptors, no-label definitions, and labels expand exactly into the validated core; `GeneralPlanSpec` is total once its components are validated; compiler-diagnostic and expansion-equivalence probes join the release gate. | The pre-freeze usability review found that policy was consequential but hidden, while callers transported redundant `None`, array-length, descriptor, and impossible-error proof plumbing. Exact conveniences make common valid programs direct without widening coverage, erasing errors, duplicating semantics, or changing receipts. |
 | **D30** | `resample4s` is the final pre-publication identity. Packages, artifacts, canonical framing tags, benchmark protocol/library labels, documentation, and the planned repository use it. No compatibility aliases retain the discarded `tessera` working name. | The chosen name identifies statistical resampling and Scala immediately while covering every catalogue family. No artifact has been published, so an alias would preserve a second public namespace without serving a real consumer. Canonical tags must change now as well; otherwise Resample4s receipts would permanently expose the discarded name. |
 | **D31** | Nested cross-validation is a published, data-blind design primitive. `NestedCrossValidation(kOuter, kInner)` and its label-aware variants compile the full outer/inner allocation into `Plan[NestedFold, Coverage.ExactOnce]`; inner selections are already embedded in the original population, all inner failures are preflighted as `NestedInnerFailure(outerKey, cause)`, and ordinary diagnostics, costs, fingerprints, and receipts remain available. | Composition made nested CV possible but left every caller to write `Either` traversals, seed derivation, label projection, embedding, and audit plumbing. That is library-owned proof bookkeeping. A single exact expansion of the existing K-fold algebra makes the common valid program direct without moving fitting or tuning into Resample4s or weakening leakage guarantees. |
+| **D32** | External allocations use two designs: `FixedSplits` retains arbitrary repeat-major `Split[Selection]` units with ordinary `Coverage`, while `FixedPartitions` consumes canonical `Labels` assignments and mints `ExactOnce` only for one repeat and `Exact` for repeated partitions. Fixed-split descriptors stream retained selections; fixed partitions reuse design-owned labels and exact partition machinery. `certifyExact*` is deferred. | Arbitrary splits cannot claim coverage. Canonical assignment labels make raw fold-code changes irrelevant while giving imported partitions a deterministic unit order. Certification would either preserve the original split order or recanonicalize it, so it would change an observable plan while presenting itself as a proof-only operation. Direct constructors keep ownership, capability, receipt components, and costs explicit. |

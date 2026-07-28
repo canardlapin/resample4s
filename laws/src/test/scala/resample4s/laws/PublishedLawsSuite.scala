@@ -359,3 +359,79 @@ final class PublishedLawsSuite extends munit.FunSuite:
       )
     assert(!result.passed)
   }
+
+  test("fixed designs satisfy the published plan and design laws") {
+    given DigestAlgorithm = DigestAlgorithm.fnv1a64
+    val space = right(IndexSpace.of(6))
+    val seed = Seed.fromLong(81L)
+
+    def selection(values: Int*): Selection =
+      right(Selection.from(ints(values*), space))
+
+    def split(
+        analysis: Seq[Int],
+        assessment: Seq[Int]
+    ): Split[Selection] =
+      right(
+        Split.of(
+          selection(analysis*),
+          selection(assessment*)
+        )
+      )
+
+    val first = split(Seq(0, 1), Seq(2))
+    val second = split(Seq(0, 3), Seq(2, 4))
+    val fixedSplits =
+      right(
+        FixedSplits.of(
+          right(PlanShape.of(1, 2)),
+          IArray.unsafeFromArray(Array(first, second))
+        )
+      )
+    val splitPlan = right(fixedSplits.compile(space, seed)).plan
+    check(PlanLaws.disjointness(splitPlan))
+    check(
+      DesignLaws.deterministic(fixedSplits, space, seed)(_ == _)
+    )
+    check(DesignLaws.totalUnits(fixedSplits, space, seed))
+    check(
+      DesignLaws.costConformance(
+        fixedSplits,
+        space,
+        seed,
+        WorkMeasurement.of[Split[Selection]](9L)(
+          _ => 1L,
+          value =>
+            value.analysis.domain.toLong +
+              value.assessment.domain.toLong
+        )
+      )
+    )
+    check(
+      DesignLaws.receiptReplay(
+        fixedSplits,
+        space,
+        seed,
+        right(Summary.of("resample4s/size", 6L))
+      )
+    )
+
+    val firstCodes = labels(10, 10, 20, 20, 30, 30)
+    val recoded = labels(-7, -7, 99, 99, 3, 3)
+    val fixedPartition = right(FixedPartitions.once(firstCodes))
+    val recodedPartition = right(FixedPartitions.once(recoded))
+    val exactPlan =
+      right(fixedPartition.compile(space, seed)).plan
+    check(PlanLaws.disjointness(exactPlan))
+    check(PlanLaws.exactCoverage(exactPlan, 6))
+    check(PlanLaws.reconstruction(exactPlan, 6))
+    check(
+      DesignLaws.labelRecoding(
+        fixedPartition,
+        recodedPartition,
+        IArray.unsafeFromArray(Array((firstCodes, recoded))),
+        space,
+        seed
+      )(_ == _)
+    )
+  }

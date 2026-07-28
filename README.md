@@ -19,9 +19,11 @@ reason nested cross-validation cannot reach an outer assessment fold.
 
 ## Status
 
-This repository is currently `0.1.0-SNAPSHOT`. The fresh-context review and
-Alder integration gates are complete; the public surface is not frozen until
-the hosted-CI gate in `PLAN.md` passes. The implementation follows `PRD.md` v0.12;
+This repository is currently `0.1.0-SNAPSHOT`. The fixed-allocation
+implementation and its local cross-platform gates are complete. Hosted JVM,
+Scala.js, Scala Native, and compatibility CI last passed on the preceding
+nested-CV baseline; changed-surface hosted CI and the ScalaFIM consumer
+rehearsal remain open. The implementation follows `PRD.md` v0.13;
 rolling-origin/time-series designs are explicitly deferred.
 
 ## Example
@@ -61,7 +63,10 @@ The `resample4s-designs` module includes:
 - leave-one-out and leave-one-group-out;
 - ordinary and whole-group bootstrap with explicit OOB policy;
 - delete-one, exhaustive delete-d, and sampled delete-d jackknife;
-- free and within-block permutation designs.
+- free and within-block permutation designs;
+- imported arbitrary analysis/assessment allocations through `FixedSplits`;
+- imported exact fold assignments through one-repeat or repeated
+  `FixedPartitions`.
 
 One-repeat partitioning designs return
 `Plan[Split[Selection], Coverage.ExactOnce]`. Repeating them preserves the
@@ -69,6 +74,13 @@ weaker `Coverage.Exact` proof—once per repeat—but deliberately drops
 `ExactOnce`. Partial designs return `Coverage`, so a consumer cannot pass
 Holdout, Bootstrap, or repeated K-fold to an API that requires one OOF value per
 row.
+
+`FixedSplits` retains caller-supplied `Split[Selection]` units in repeat-major
+order and always returns `Coverage`; it permits partial coverage, overlapping
+assessments across units, and rows omitted from both roles. `FixedPartitions`
+accepts canonical `Labels` assignments. Its one-repeat constructor returns
+`ExactOnce`, while repeated assignments return `Exact`. Raw fold codes are
+canonicalized, and run or display names remain consumer metadata.
 
 ## Reproducibility and audit
 
