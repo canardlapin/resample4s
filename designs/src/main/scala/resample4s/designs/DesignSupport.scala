@@ -55,13 +55,14 @@ private[designs] object ExactDefinitionRoute:
       ): DesignDefinition[Split[Selection], Coverage.Exact] =
         DesignDefinition.exactPartitions(descriptor, labels)(build)
 
-/** Min-heap of folds ordered by current load, then seeded priority.
-  *
-  * The initial heap is the priority permutation itself: with every load at
-  * zero, a parent always precedes its children by construction. A load only
-  * increases after the root is selected, so restoring the heap requires one
-  * downward pass.
-  */
+/**
+ * Min-heap of folds ordered by current load, then seeded priority.
+ *
+ * The initial heap is the priority permutation itself: with every load at
+ * zero, a parent always precedes its children by construction. A load only
+ * increases after the root is selected, so restoring the heap requires one
+ * downward pass.
+ */
 private[designs] final class FoldLoadQueue private (
     private val heap: Array[Int],
     private val priorityRank: Array[Int],
@@ -80,8 +81,8 @@ private[designs] final class FoldLoadQueue private (
   private def precedes(left: Int, right: Int): Boolean =
     observedComparisons += 1L
     loads(left) < loads(right) ||
-      (loads(left) == loads(right) &&
-        priorityRank(left) < priorityRank(right))
+    (loads(left) == loads(right) &&
+      priorityRank(left) < priorityRank(right))
 
   private def siftDown(): Unit =
     var parent = 0
@@ -92,8 +93,7 @@ private[designs] final class FoldLoadQueue private (
       else
         val right = left + 1
         val preferredChild =
-          if right < heap.length && precedes(heap(right), heap(left)) then
-            right
+          if right < heap.length && precedes(heap(right), heap(left)) then right
           else left
         if precedes(heap(preferredChild), heap(parent)) then
           val held = heap(parent)
@@ -151,8 +151,7 @@ private[designs] object DesignSupport:
     val n = context.space.size
     if folds < 2 then Left(DesignError.TooFewFolds(folds, 2))
     else if folds > n then Left(DesignError.TooManyFolds(folds, n))
-    else if repeats < 1 then
-      Left(DesignError.InvalidRepeatCount(repeats))
+    else if repeats < 1 then Left(DesignError.InvalidRepeatCount(repeats))
     else
       val partitions = new Array[FoldPartition](repeats)
       val observed = Vector.newBuilder[PlanDiagnostics]
@@ -408,15 +407,23 @@ private[designs] object DesignSupport:
   def plainPartition(
       context: BuildContext,
       folds: Int,
-      repeat: Int
+      repeat: Int,
+      shuffle: Boolean = true
   ): Either[DesignError, FoldPartition] =
     val n = context.space.size
-    val shuffled =
-      shuffledIndices(n, context.derive(repeatPath(repeat)))
+    val order =
+      if shuffle then shuffledIndices(n, context.derive(repeatPath(repeat)))
+      else
+        val identity = new Array[Int](n)
+        var index = 0
+        while index < n do
+          identity(index) = index
+          index += 1
+        IArray.unsafeFromArray(identity)
     val assignments = new Array[Int](n)
     var position = 0
     while position < n do
-      assignments(shuffled(position)) = position % folds
+      assignments(order(position)) = position % folds
       position += 1
     FoldPartition.fromAssignments(
       n,
@@ -495,9 +502,7 @@ private[designs] object DesignSupport:
       val groupOrder = seededLptOrder(context, groupMembers, repeat)
       val priority = foldPriority(context, folds, repeat)
       val stratumTotals =
-        Array.tabulate(strata.cardinality)(code =>
-          countLabel(strata, code)
-        )
+        Array.tabulate(strata.cardinality)(code => countLabel(strata, code))
       val profiles =
         Array.fill(groups.cardinality)(
           Vector.empty[(Int, Int)]
@@ -512,7 +517,7 @@ private[designs] object DesignSupport:
         val stratum = strata.unsafeAt(row)
         builders(group).updateWith(stratum) {
           case Some(count) => Some(count + 1)
-          case None        => Some(1)
+          case None => Some(1)
         }
         row += 1
       var group = 0
@@ -559,7 +564,7 @@ private[designs] object DesignSupport:
         profiles(currentGroup).foreach { (stratum, count) =>
           foldProfiles(bestFold).updateWith(stratum) {
             case Some(current) => Some(current + count)
-            case None          => Some(count)
+            case None => Some(count)
           }
         }
         objective += chosenDelta
@@ -603,9 +608,7 @@ private[designs] object DesignSupport:
       counts(labels.unsafeAt(index)) += 1
       index += 1
     val members =
-      Array.tabulate(labels.cardinality)(code =>
-        new Array[Int](counts(code))
-      )
+      Array.tabulate(labels.cardinality)(code => new Array[Int](counts(code)))
     val offsets = Array.fill(labels.cardinality)(0)
     index = 0
     while index < labels.size do
@@ -633,7 +636,7 @@ private[designs] object DesignSupport:
       val size = members(ordered(start)).length
       var end = start + 1
       while end < ordered.length &&
-          members(ordered(end)).length == size
+        members(ordered(end)).length == size
       do end += 1
       val bucketValues =
         IArray.unsafeFromArray(ordered.slice(start, end).toArray)

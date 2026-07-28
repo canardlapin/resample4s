@@ -7,8 +7,7 @@ object DigestAlgorithmId:
     if Identifiers.schema(value) then Right(value)
     else Left(DigestError.InvalidAlgorithmId(value))
 
-  extension (id: DigestAlgorithmId)
-    def value: String = id
+  extension (id: DigestAlgorithmId) def value: String = id
 
   private[resample4s] def unsafe(value: String): DigestAlgorithmId = value
 
@@ -51,12 +50,13 @@ object DigestValue:
 
   given CanEqual[DigestValue, DigestValue] = CanEqual.derived
 
-/** One incremental invocation of a [[DigestAlgorithm]].
-  *
-  * Implementations consume each chunk before `update` returns and must neither
-  * mutate nor retain it. A session is single-use: callers update it zero or more
-  * times and then call `finish` exactly once.
-  */
+/**
+ * One incremental invocation of a [[DigestAlgorithm]].
+ *
+ * Implementations consume each chunk before `update` returns and must neither
+ * mutate nor retain it. A session is single-use: callers update it zero or more
+ * times and then call `finish` exactly once.
+ */
 trait DigestAccumulator:
   def update(chunk: IArray[Byte]): Either[DigestError, Unit]
   def finish(): Either[DigestError, DigestValue]
@@ -74,20 +74,21 @@ trait DigestAlgorithm:
       while chunks.hasNext && failure.isEmpty do
         accumulator.update(chunks.next()) match
           case Left(error) => failure = Some(error)
-          case Right(_)    => ()
+          case Right(_) => ()
       failure match
         case Some(error) => Left(error)
-        case None        => accumulator.finish()
+        case None => accumulator.finish()
     }
 
 object DigestAlgorithm:
-  /** FNV-1a-64 is a non-adversarial checksum for accidental divergence.
-    *
-    * It is not collision-resistant, does not make a receipt tamper-evident,
-    * and provides no authentication. Consumers needing a cryptographic
-    * commitment must supply another deterministic `DigestAlgorithm` and still
-    * arrange trusted storage or a signature outside Resample4s.
-    */
+  /**
+   * FNV-1a-64 is a non-adversarial checksum for accidental divergence.
+   *
+   * It is not collision-resistant, does not make a receipt tamper-evident,
+   * and provides no authentication. Consumers needing a cryptographic
+   * commitment must supply another deterministic `DigestAlgorithm` and still
+   * arrange trusted storage or a signature outside Resample4s.
+   */
   val fnv1a64: DigestAlgorithm =
     new DigestAlgorithm:
       val id: DigestAlgorithmId =

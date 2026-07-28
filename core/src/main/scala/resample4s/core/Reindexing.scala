@@ -3,20 +3,64 @@ package resample4s.core
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-/** A total function from one finite ordinal into another.
-  *
-  * Public lookup is checked. Implementations expose an unchecked path only
-  * inside Resample4s after dimensions have been validated.
-  */
-sealed trait Reindexing:
+/** Discriminator for reindexing kinds that participate in [[Split]] equality. */
+private[resample4s] enum ReindexingKind derives CanEqual:
+  case Selection, Draw, Injection, Permutation
+
+/**
+ * A total function from one finite ordinal into another.
+ *
+ * Public lookup is checked. Implementations expose an unchecked path only
+ * inside Resample4s after dimensions have been validated.
+ *
+ * Ordinary full traversal must use [[foreachIndex]] or [[cursor]], not
+ * repeated [[at]] / `unsafeAt` on compact backings.
+ */
+sealed trait Reindexing extends IterableOnce[Int]:
   def domain: Int
   def codomain: Int
+
+  /** Familiar alias for [[domain]]. */
+  final def size: Int = domain
+
+  /** Familiar alias for [[codomain]]. */
+  final def populationSize: Int = codomain
+
   def at(index: Int): Either[OutOfDomain, Int] =
     if index >= 0 && index < domain then Right(unsafeAt(index))
     else Left(OutOfDomain(index, domain))
+
+  def get(position: Int): Option[Int] = at(position).toOption
+
   def toIArray: IArray[Int]
+  def toArray: Array[Int] =
+    val values = toIArray
+    val copy = new Array[Int](values.length)
+    var index = 0
+    while index < values.length do
+      copy(index) = values(index)
+      index += 1
+    copy
+  def toVector: Vector[Int] = toIArray.toVector
   def support: Selection
   private[resample4s] def unsafeAt(index: Int): Int
+  private[resample4s] def cursor: IntCursor
+  private[resample4s] def kind: ReindexingKind
+
+  /** Applies `f` to each ordinal in domain order using a linear cursor. */
+  final def foreachIndex(f: Int => Unit): Unit =
+    val it = cursor
+    while it.hasNext do f(it.nextInt())
+
+  final def iterator: Iterator[Int] =
+    new Iterator[Int]:
+      private val underlying = cursor
+      def hasNext: Boolean = underlying.hasNext
+      def next(): Int = underlying.nextInt()
+
+  /** Extensional ordinal equality, ignoring reindexing kind. */
+  final def sameMapping(that: Reindexing): Boolean =
+    ReindexingEquality.equal(this, that)
 
 sealed trait Injective extends Reindexing
 
@@ -49,7 +93,7 @@ private[resample4s] object ReindexingValidation:
         index += 1
       duplicate match
         case Some(value) => Left(DesignError.DuplicateIndex(value))
-        case None        => Right(())
+        case None => Right(())
     }
 
 private[resample4s] sealed trait SelectionBacking:
@@ -57,6 +101,7 @@ private[resample4s] sealed trait SelectionBacking:
   def codomain: Int
   def unsafeAt(index: Int): Int
   def materialize: IArray[Int]
+  def cursor: IntCursor
 
 private[resample4s] object SelectionBacking:
   final class Explicit(
@@ -66,6 +111,7 @@ private[resample4s] object SelectionBacking:
     def size: Int = values.length
     def unsafeAt(index: Int): Int = values(index)
     def materialize: IArray[Int] = values
+    def cursor: IntCursor = ArrayIntCursor(values)
 
   final class Block(
       private[resample4s] val partition: FoldPartition,
@@ -75,17 +121,27 @@ private[resample4s] object SelectionBacking:
     def codomain: Int = partition.populationSize
     def unsafeAt(index: Int): Int = partition.blockMemberUnsafe(blockId, index)
     def materialize: IArray[Int] = partition.blockMembersUnsafe(blockId)
+    def cursor: IntCursor =
+      new IntCursor:
+        private var index = 0
+        def hasNext: Boolean = index < size
+        def nextInt(): Int =
+          val value = partition.blockMemberUnsafe(blockId, index)
+          index += 1
+          value
 
   final class ComplementBlock(
       private[resample4s] val partition: FoldPartition,
       private[resample4s] val blockId: Int
   ) extends SelectionBacking:
-    def size: Int = partition.populationSize - partition.blockSizeUnsafe(blockId)
+    def size: Int =
+      partition.populationSize - partition.blockSizeUnsafe(blockId)
     def codomain: Int = partition.populationSize
     def unsafeAt(index: Int): Int =
       var populationIndex = 0
       var found = 0
       while populationIndex < codomain do
+        CompactTraversalProbe.observe()
         if partition.assignmentUnsafe(populationIndex) != blockId then
           if found == index then return populationIndex
           found += 1
@@ -96,11 +152,28 @@ private[resample4s] object SelectionBacking:
       var populationIndex = 0
       var output = 0
       while populationIndex < codomain do
+        CompactTraversalProbe.observe()
         if partition.assignmentUnsafe(populationIndex) != blockId then
           values(output) = populationIndex
           output += 1
         populationIndex += 1
       IArray.unsafeFromArray(values)
+    def cursor: IntCursor =
+      new IntCursor:
+        private var populationIndex = 0
+        private var emitted = 0
+        def hasNext: Boolean = emitted < size
+        def nextInt(): Int =
+          while populationIndex < codomain do
+            CompactTraversalProbe.observe()
+            val current = populationIndex
+            val included =
+              partition.assignmentUnsafe(populationIndex) != blockId
+            populationIndex += 1
+            if included then
+              emitted += 1
+              return current
+          throw new NoSuchElementException("ComplementBlock cursor exhausted")
 
   final class LabelClasses(
       labels: Labels,
@@ -118,6 +191,7 @@ private[resample4s] object SelectionBacking:
       var populationIndex = 0
       var found = 0
       while populationIndex < codomain do
+        CompactTraversalProbe.observe()
         if classSet(labels.unsafeAt(populationIndex)) then
           if found == index then return populationIndex
           found += 1
@@ -128,11 +202,27 @@ private[resample4s] object SelectionBacking:
       var populationIndex = 0
       var output = 0
       while populationIndex < codomain do
+        CompactTraversalProbe.observe()
         if classSet(labels.unsafeAt(populationIndex)) then
           values(output) = populationIndex
           output += 1
         populationIndex += 1
       IArray.unsafeFromArray(values)
+    def cursor: IntCursor =
+      new IntCursor:
+        private var populationIndex = 0
+        private var emitted = 0
+        def hasNext: Boolean = emitted < size
+        def nextInt(): Int =
+          while populationIndex < codomain do
+            CompactTraversalProbe.observe()
+            val current = populationIndex
+            val included = classSet(labels.unsafeAt(populationIndex))
+            populationIndex += 1
+            if included then
+              emitted += 1
+              return current
+          throw new NoSuchElementException("LabelClasses cursor exhausted")
 
   final class ComplementOf(
       private[resample4s] val base: Selection
@@ -144,6 +234,7 @@ private[resample4s] object SelectionBacking:
       var baseIndex = 0
       var found = 0
       while populationIndex < codomain do
+        CompactTraversalProbe.observe()
         val excluded =
           baseIndex < base.domain &&
             base.unsafeAt(baseIndex) == populationIndex
@@ -156,30 +247,56 @@ private[resample4s] object SelectionBacking:
     def materialize: IArray[Int] =
       val values = new Array[Int](size)
       var populationIndex = 0
-      var baseIndex = 0
       var output = 0
+      val baseCursor = base.cursor
+      var hasExcluded = baseCursor.hasNext
+      var nextExcluded = if hasExcluded then baseCursor.nextInt() else -1
       while populationIndex < codomain do
-        val excluded =
-          baseIndex < base.domain &&
-            base.unsafeAt(baseIndex) == populationIndex
-        if excluded then baseIndex += 1
+        CompactTraversalProbe.observe()
+        if hasExcluded && populationIndex == nextExcluded then
+          if baseCursor.hasNext then nextExcluded = baseCursor.nextInt()
+          else hasExcluded = false
         else
           values(output) = populationIndex
           output += 1
         populationIndex += 1
       IArray.unsafeFromArray(values)
+    def cursor: IntCursor =
+      new IntCursor:
+        private val baseCursor = base.cursor
+        private var hasExcluded = baseCursor.hasNext
+        private var nextExcluded =
+          if hasExcluded then baseCursor.nextInt() else -1
+        private var populationIndex = 0
+        private var emitted = 0
+        def hasNext: Boolean = emitted < size
+        def nextInt(): Int =
+          while populationIndex < codomain do
+            CompactTraversalProbe.observe()
+            val current = populationIndex
+            populationIndex += 1
+            if hasExcluded && current == nextExcluded then
+              if baseCursor.hasNext then nextExcluded = baseCursor.nextInt()
+              else hasExcluded = false
+            else
+              emitted += 1
+              return current
+          throw new NoSuchElementException("ComplementOf cursor exhausted")
 
-/** A strictly increasing, injective finite reindexing.
-  *
-  * Equality and hashing are extensional: compact block and complement
-  * backings are not observable.
-  */
+/**
+ * A strictly increasing, injective finite reindexing.
+ *
+ * Equality and hashing are extensional: compact block and complement
+ * backings are not observable.
+ */
 final class Selection private[resample4s] (
     private[resample4s] val backing: SelectionBacking
 ) extends Injective:
   def domain: Int = backing.size
   def codomain: Int = backing.codomain
   private[resample4s] def unsafeAt(index: Int): Int = backing.unsafeAt(index)
+  private[resample4s] def cursor: IntCursor = backing.cursor
+  private[resample4s] def kind: ReindexingKind = ReindexingKind.Selection
   def toIArray: IArray[Int] = backing.materialize
   def support: Selection = this
 
@@ -208,14 +325,18 @@ final class Selection private[resample4s] (
       Left(CodomainMismatch(codomain, that.codomain))
     else
       val result = Vector.newBuilder[Int]
-      var left = 0
-      var right = 0
-      while left < domain do
-        val value = unsafeAt(left)
-        while right < that.domain && that.unsafeAt(right) < value do right += 1
-        if right >= that.domain || that.unsafeAt(right) != value then
-          result += value
-        left += 1
+      val leftCursor = cursor
+      val rightCursor = that.cursor
+      var rightHas = rightCursor.hasNext
+      var rightValue = if rightHas then rightCursor.nextInt() else 0
+      while leftCursor.hasNext do
+        val value = leftCursor.nextInt()
+        while rightHas && rightValue < value do
+          if rightCursor.hasNext then rightValue = rightCursor.nextInt()
+          else rightHas = false
+        if !rightHas || rightValue != value then result += value
+        else if rightCursor.hasNext then rightValue = rightCursor.nextInt()
+        else rightHas = false
       Right(Selection.fromSortedOwned(result.result(), codomain))
 
   private def merge(
@@ -227,29 +348,37 @@ final class Selection private[resample4s] (
       Left(CodomainMismatch(codomain, that.codomain))
     else
       val result = Vector.newBuilder[Int]
-      var left = 0
-      var right = 0
-      while left < domain || right < that.domain do
-        if left >= domain then
-          if includeRightOnly then result += that.unsafeAt(right)
-          right += 1
-        else if right >= that.domain then
-          if includeRightOnly then result += unsafeAt(left)
-          left += 1
+      val leftCursor = cursor
+      val rightCursor = that.cursor
+      var leftHas = leftCursor.hasNext
+      var rightHas = rightCursor.hasNext
+      var leftValue = if leftHas then leftCursor.nextInt() else 0
+      var rightValue = if rightHas then rightCursor.nextInt() else 0
+      while leftHas || rightHas do
+        if !leftHas then
+          if includeRightOnly then result += rightValue
+          if rightCursor.hasNext then rightValue = rightCursor.nextInt()
+          else rightHas = false
+        else if !rightHas then
+          if includeRightOnly then result += leftValue
+          if leftCursor.hasNext then leftValue = leftCursor.nextInt()
+          else leftHas = false
         else
-          val leftValue = unsafeAt(left)
-          val rightValue = that.unsafeAt(right)
           val comparison = java.lang.Integer.compare(leftValue, rightValue)
           if comparison == 0 then
             if includeComparison(comparison) then result += leftValue
-            left += 1
-            right += 1
+            if leftCursor.hasNext then leftValue = leftCursor.nextInt()
+            else leftHas = false
+            if rightCursor.hasNext then rightValue = rightCursor.nextInt()
+            else rightHas = false
           else if comparison < 0 then
             if includeComparison(comparison) then result += leftValue
-            left += 1
+            if leftCursor.hasNext then leftValue = leftCursor.nextInt()
+            else leftHas = false
           else
             if includeRightOnly then result += rightValue
-            right += 1
+            if rightCursor.hasNext then rightValue = rightCursor.nextInt()
+            else rightHas = false
       Right(Selection.fromSortedOwned(result.result(), codomain))
 
   override def equals(other: Any): Boolean =
@@ -259,6 +388,8 @@ final class Selection private[resample4s] (
       case _ => false
 
   override def hashCode(): Int = ReindexingEquality.hash(this)
+
+  override def toString: String = Rendering.reindexing(this)
 
 object Selection:
   def from(
@@ -323,11 +454,12 @@ object Selection:
 
   given CanEqual[Selection, Selection] = CanEqual.derived
 
-/** An ordered draw sequence in which targets may repeat.
-  *
-  * Order is semantic and participates in equality and receipt encoding.
-  * `sameMultiset` is the explicitly weaker comparison.
-  */
+/**
+ * An ordered draw sequence in which targets may repeat.
+ *
+ * Order is semantic and participates in equality and receipt encoding.
+ * `sameMultiset` is the explicitly weaker comparison.
+ */
 final class Draw private (
     private val values: IArray[Int],
     val codomain: Int,
@@ -335,6 +467,8 @@ final class Draw private (
 ) extends Reindexing:
   def domain: Int = values.length
   private[resample4s] def unsafeAt(index: Int): Int = values(index)
+  private[resample4s] def cursor: IntCursor = ArrayIntCursor(values)
+  private[resample4s] def kind: ReindexingKind = ReindexingKind.Draw
   def toIArray: IArray[Int] = values
   def support: Selection =
     knownSupport.getOrElse {
@@ -373,9 +507,11 @@ final class Draw private (
   override def equals(other: Any): Boolean =
     other match
       case that: Draw => ReindexingEquality.equal(this, that)
-      case _          => false
+      case _ => false
 
   override def hashCode(): Int = ReindexingEquality.hash(this)
+
+  override def toString: String = Rendering.reindexing(this)
 
 object Draw:
   def from(values: IArray[Int], space: IndexSpace): Either[DesignError, Draw] =
@@ -399,6 +535,8 @@ final class Injection private (
 ) extends Injective:
   def domain: Int = values.length
   private[resample4s] def unsafeAt(index: Int): Int = values(index)
+  private[resample4s] def cursor: IntCursor = ArrayIntCursor(values)
+  private[resample4s] def kind: ReindexingKind = ReindexingKind.Injection
   def toIArray: IArray[Int] = values
   lazy val support: Selection =
     val sorted = Array.tabulate(domain)(values(_))
@@ -409,9 +547,10 @@ final class Injection private (
     val selected = support
     val positions = mutable.HashMap.empty[Int, Int]
     var index = 0
-    while index < selected.domain do
-      positions.update(selected.unsafeAt(index), index)
+    selected.foreachIndex { ordinal =>
+      positions.update(ordinal, index)
       index += 1
+    }
     val permutation = new Array[Int](domain)
     index = 0
     while index < domain do
@@ -427,9 +566,11 @@ final class Injection private (
   override def equals(other: Any): Boolean =
     other match
       case that: Injection => ReindexingEquality.equal(this, that)
-      case _               => false
+      case _ => false
 
   override def hashCode(): Int = ReindexingEquality.hash(this)
+
+  override def toString: String = Rendering.reindexing(this)
 
 object Injection:
   def from(
@@ -454,6 +595,8 @@ final class Permutation private (private val values: IArray[Int])
   val domain: Int = values.length
   val codomain: Int = values.length
   private[resample4s] def unsafeAt(index: Int): Int = values(index)
+  private[resample4s] def cursor: IntCursor = ArrayIntCursor(values)
+  private[resample4s] def kind: ReindexingKind = ReindexingKind.Permutation
   def toIArray: IArray[Int] = values
   lazy val support: Selection =
     val identity = new Array[Int](domain)
@@ -481,9 +624,11 @@ final class Permutation private (private val values: IArray[Int])
   override def equals(other: Any): Boolean =
     other match
       case that: Permutation => ReindexingEquality.equal(this, that)
-      case _                 => false
+      case _ => false
 
   override def hashCode(): Int = ReindexingEquality.hash(this)
+
+  override def toString: String = Rendering.reindexing(this)
 
 object Permutation:
   def from(
@@ -513,19 +658,17 @@ private[resample4s] object ReindexingEquality:
   def equal(left: Reindexing, right: Reindexing): Boolean =
     if left.domain != right.domain || left.codomain != right.codomain then false
     else
-      var index = 0
+      val leftCursor = left.cursor
+      val rightCursor = right.cursor
       var same = true
-      while index < left.domain && same do
-        same = left.unsafeAt(index) == right.unsafeAt(index)
-        index += 1
+      while same && leftCursor.hasNext do
+        same = leftCursor.nextInt() == rightCursor.nextInt()
       same
 
   def hash(value: Reindexing): Int =
     var hash = 31 + value.codomain
-    var index = 0
-    while index < value.domain do
-      hash = 31 * hash + value.unsafeAt(index)
-      index += 1
+    val it = value.cursor
+    while it.hasNext do hash = 31 * hash + it.nextInt()
     hash
 
 def pull[A: ClassTag](
@@ -536,8 +679,32 @@ def pull[A: ClassTag](
     Left(CodomainMismatch(values.length, reindexing.codomain))
   else
     val result = new Array[A](reindexing.domain)
+    val it = reindexing.cursor
     var index = 0
-    while index < reindexing.domain do
-      result(index) = values(reindexing.unsafeAt(index))
+    while it.hasNext do
+      result(index) = values(it.nextInt())
       index += 1
     Right(IArray.unsafeFromArray(result))
+
+extension (reindexing: Reindexing)
+  def pullFrom[A: ClassTag](
+      values: IArray[A]
+  ): Either[CodomainMismatch, IArray[A]] =
+    pull(values, reindexing)
+
+  @scala.annotation.targetName("pullFromArray")
+  def pullFrom[A: ClassTag](
+      values: Array[A]
+  ): Either[CodomainMismatch, IArray[A]] =
+    pull(IArray.unsafeFromArray(values.clone()), reindexing)
+
+  @scala.annotation.targetName("pullFromIndexedSeq")
+  def pullFrom[A: ClassTag](
+      values: IndexedSeq[A]
+  ): Either[CodomainMismatch, IArray[A]] =
+    val owned = Array.ofDim[A](values.length)
+    var index = 0
+    while index < values.length do
+      owned(index) = values(index)
+      index += 1
+    pull(IArray.unsafeFromArray(owned), reindexing)

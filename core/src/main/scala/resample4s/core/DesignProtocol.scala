@@ -1,34 +1,73 @@
 package resample4s.core
 
-enum DiagnosticMetric derives CanEqual:
-  case MaxFoldSize
-  case MinFoldSize
-  case SizeImbalance
-  case Objective
-  case Optimum
-  case Regret
-  case MaxStratumDeviation
-  case GroupPurityNumerator
-  case GroupPurityDenominator
-  case Repeats
+opaque type MetricId = String
+
+object MetricId:
+  def fromString(value: String): Either[DesignError, MetricId] =
+    if value.isEmpty || value.exists(ch =>
+        !(ch.isLetterOrDigit || ch == '-' || ch == '_')
+      )
+    then Left(DesignError.InvalidMetricId(value))
+    else Right(value)
+
+  private[resample4s] def unsafe(value: String): MetricId = value
+
+  extension (id: MetricId) def value: String = id
+
+  given CanEqual[MetricId, MetricId] = CanEqual.derived
+
+/**
+ * Built-in diagnostic metric identifiers. External authors may mint their own
+ * [[MetricId]] values with [[MetricId.fromString]].
+ */
+object Metrics:
+  val maxFoldSize: MetricId = MetricId.unsafe("max-fold-size")
+  val minFoldSize: MetricId = MetricId.unsafe("min-fold-size")
+  val sizeImbalance: MetricId = MetricId.unsafe("size-imbalance")
+  val objective: MetricId = MetricId.unsafe("objective")
+  val optimum: MetricId = MetricId.unsafe("optimum")
+  val regret: MetricId = MetricId.unsafe("regret")
+  val maxStratumDeviation: MetricId =
+    MetricId.unsafe("max-stratum-deviation")
+  val groupPurityNumerator: MetricId =
+    MetricId.unsafe("group-purity-numerator")
+  val groupPurityDenominator: MetricId =
+    MetricId.unsafe("group-purity-denominator")
+  val repeats: MetricId = MetricId.unsafe("repeats")
+
+/** @deprecated Use [[MetricId]] / [[Metrics]]. */
+type DiagnosticMetric = MetricId
+
+/** @deprecated Use [[Metrics]]. */
+object DiagnosticMetric:
+  val MaxFoldSize: MetricId = Metrics.maxFoldSize
+  val MinFoldSize: MetricId = Metrics.minFoldSize
+  val SizeImbalance: MetricId = Metrics.sizeImbalance
+  val Objective: MetricId = Metrics.objective
+  val Optimum: MetricId = Metrics.optimum
+  val Regret: MetricId = Metrics.regret
+  val MaxStratumDeviation: MetricId = Metrics.maxStratumDeviation
+  val GroupPurityNumerator: MetricId = Metrics.groupPurityNumerator
+  val GroupPurityDenominator: MetricId = Metrics.groupPurityDenominator
+  val Repeats: MetricId = Metrics.repeats
 
 /** Exact, typed observations about best-effort allocation quality. */
 final class PlanDiagnostics private (
-    private val entries: Vector[(DiagnosticMetric, BigInt)]
+    private val entries: Vector[(MetricId, BigInt)]
 ):
   def size: Int = entries.length
 
-  def metric(index: Int): Either[OutOfDomain, DiagnosticMetric] =
+  def metric(index: Int): Either[OutOfDomain, MetricId] =
     if index >= 0 && index < entries.length then Right(entries(index)._1)
     else Left(OutOfDomain(index, entries.length))
 
-  def value(metric: DiagnosticMetric): Option[BigInt] =
+  def value(metric: MetricId): Option[BigInt] =
     entries.find(_._1 == metric).map(_._2)
 
   override def equals(other: Any): Boolean =
     other match
       case that: PlanDiagnostics => entries == that.entries
-      case _                     => false
+      case _ => false
 
   override def hashCode(): Int = entries.hashCode()
 
@@ -36,10 +75,10 @@ object PlanDiagnostics:
   val empty: PlanDiagnostics = new PlanDiagnostics(Vector.empty)
 
   def of(
-      values: IArray[(DiagnosticMetric, BigInt)]
+      values: IArray[(MetricId, BigInt)]
   ): Either[DesignError, PlanDiagnostics] =
-    val result = Vector.newBuilder[(DiagnosticMetric, BigInt)]
-    val seen = scala.collection.mutable.HashSet.empty[DiagnosticMetric]
+    val result = Vector.newBuilder[(MetricId, BigInt)]
+    val seen = scala.collection.mutable.HashSet.empty[MetricId]
     var index = 0
     var error: Option[DesignError] = None
     while index < values.length && error.isEmpty do
@@ -52,10 +91,10 @@ object PlanDiagnostics:
       index += 1
     error match
       case Some(value) => Left(value)
-      case None        => Right(new PlanDiagnostics(result.result()))
+      case None => Right(new PlanDiagnostics(result.result()))
 
   private[resample4s] def unsafe(
-      values: (DiagnosticMetric, BigInt)*
+      values: (MetricId, BigInt)*
   ): PlanDiagnostics =
     new PlanDiagnostics(values.toVector)
 
@@ -66,7 +105,19 @@ final class PlanCost private (
     val residentElementsUpperBound: Long,
     val workPerUnitUpperBound: Long,
     val receiptWorkPerUnitUpperBound: Long
-)
+):
+  override def equals(other: Any): Boolean =
+    other match
+      case that: PlanCost =>
+        residentElementsUpperBound == that.residentElementsUpperBound &&
+        workPerUnitUpperBound == that.workPerUnitUpperBound &&
+        receiptWorkPerUnitUpperBound == that.receiptWorkPerUnitUpperBound
+      case _ => false
+
+  override def hashCode(): Int =
+    var hash = 31 + residentElementsUpperBound.##
+    hash = 31 * hash + workPerUnitUpperBound.##
+    31 * hash + receiptWorkPerUnitUpperBound.##
 
 object PlanCost:
   def of(
@@ -75,8 +126,8 @@ object PlanCost:
       receiptWorkPerUnitUpperBound: Long
   ): Either[DesignError, PlanCost] =
     if residentElementsUpperBound < 0 ||
-        workPerUnitUpperBound < 0 ||
-        receiptWorkPerUnitUpperBound < 0
+      workPerUnitUpperBound < 0 ||
+      receiptWorkPerUnitUpperBound < 0
     then
       Left(
         DesignError.InvalidPlanCost(
@@ -117,18 +168,18 @@ final class BuildContext private[resample4s] (
   def labels: Option[Labels] = ownedLabels.headOption
   def labelCount: Int = ownedLabels.length
   def labelAt(index: Int): Either[OutOfDomain, Labels] =
-    if index >= 0 && index < ownedLabels.length then
-      Right(ownedLabels(index))
+    if index >= 0 && index < ownedLabels.length then Right(ownedLabels(index))
     else Left(OutOfDomain(index, ownedLabels.length))
 
   def derive(path: StreamPath): Seed =
     Rand.derive(seed, designKey, path)
 
-/** Canonical semantic encoding for a general design's public unit value.
-  *
-  * The writer exposes framed typed primitives only; raw byte injection is not
-  * part of the public extension protocol.
-  */
+/**
+ * Canonical semantic encoding for a general design's public unit value.
+ *
+ * The writer exposes framed typed primitives only; raw byte injection is not
+ * part of the public extension protocol.
+ */
 trait CanonicalAssignmentEncoder[-A]:
   def encode(
       value: A,
@@ -143,10 +194,7 @@ object CanonicalAssignmentEncoder:
   ): Either[DigestError, Unit] =
     out.variant(tag).flatMap { _ =>
       out.beginSequence(value.domain).map { _ =>
-        var index = 0
-        while index < value.domain do
-          out.int(value.unsafeAt(index))
-          index += 1
+        value.foreachIndex(out.int)
       }
     }
 
@@ -239,8 +287,7 @@ object ExactPartitionSpec:
       partitions: IArray[FoldPartition],
       diagnostics: PlanDiagnostics
   ): Either[DesignError, ExactPartitionSpec] =
-    if partitions.isEmpty then
-      Left(DesignError.InvalidPlanShape(0, 0))
+    if partitions.isEmpty then Left(DesignError.InvalidPlanShape(0, 0))
     else
       val expectedPopulation = partitions(0).populationSize
       val expectedFolds = partitions(0).folds
@@ -283,26 +330,25 @@ object ExactPartitionSpec:
               )
             )
 
-/** Framework-owned compilation route for a design.
-  *
-  * `general` always yields ordinary `Coverage`; only the partition routes can
-  * produce exact-coverage evidence. `exactOncePartitions` additionally proves
-  * that the plan contains one repeat.
-  */
+/**
+ * Framework-owned compilation route for a design.
+ *
+ * `general` always yields ordinary `Coverage`; only the partition routes can
+ * produce exact-coverage evidence. `exactOncePartitions` additionally proves
+ * that the plan contains one repeat.
+ */
 final class DesignDefinition[+A, +Cov <: Coverage] private (
     val descriptor: DesignDescriptor,
     private val ownedLabels: Vector[Labels],
-    private val compileValidated:
-      (IndexSpace, Seed, BuildContext) => Either[
-        DesignError,
-        Compiled[A, Cov]
-      ]
+    private val compileValidated: (IndexSpace, Seed, BuildContext) => Either[
+      DesignError,
+      Compiled[A, Cov]
+    ]
 ):
   def labels: Option[Labels] = ownedLabels.headOption
   def labelCount: Int = ownedLabels.length
   def labelAt(index: Int): Either[OutOfDomain, Labels] =
-    if index >= 0 && index < ownedLabels.length then
-      Right(ownedLabels(index))
+    if index >= 0 && index < ownedLabels.length then Right(ownedLabels(index))
     else Left(OutOfDomain(index, ownedLabels.length))
 
   private[resample4s] def labelValues: Vector[Labels] = ownedLabels
@@ -320,13 +366,14 @@ final class DesignDefinition[+A, +Cov <: Coverage] private (
         compileValidated(space, seed, context)
 
 object DesignDefinition:
-  /** Internal route for a design combinator whose coverage capability is
-    * inherited from an already-validated source plan.
-    *
-    * Public consumer definitions still use `general`, `exactPartitions`, or
-    * `exactOncePartitions`; this route does not let an arbitrary generator
-    * assert exact coverage.
-    */
+  /**
+   * Internal route for a design combinator whose coverage capability is
+   * inherited from an already-validated source plan.
+   *
+   * Public consumer definitions still use `general`, `exactPartitions`, or
+   * `exactOncePartitions`; this route does not let an arbitrary generator
+   * assert exact coverage.
+   */
   private[resample4s] def derived[A, Cov <: Coverage](
       descriptor: DesignDescriptor,
       labels: IArray[Labels]
@@ -511,11 +558,12 @@ object DesignDefinition:
         }
     )
 
-/** A self-contained, reproducible design.
-  *
-  * `definition` is the sole extension member. Randomization keys, compilation,
-  * fingerprints, and receipt plumbing remain final and core-owned.
-  */
+/**
+ * A self-contained, reproducible design.
+ *
+ * `definition` is the sole extension member. Randomization keys, compilation,
+ * fingerprints, and receipt plumbing remain final and core-owned.
+ */
 trait Design[+A, +Cov <: Coverage]:
   def definition: DesignDefinition[A, Cov]
 
@@ -525,20 +573,20 @@ trait Design[+A, +Cov <: Coverage]:
       definition.labelValues
     )
 
-  final def fingerprint(
-      using algorithm: DigestAlgorithm
+  final def fingerprint(using
+      algorithm: DigestAlgorithm
   ): Either[DigestError, ContentDigest] =
     CanonicalDesign
       .fingerprint(definition.descriptor, definition.labelValues)
 
-  final def labelsFingerprint(
-      using algorithm: DigestAlgorithm
+  final def labelsFingerprint(using
+      algorithm: DigestAlgorithm
   ): Either[DigestError, Option[ContentDigest]] =
     val labels = definition.labelValues
     if labels.nonEmpty then
-        CanonicalDesign
-          .labelsFingerprint(labels)
-          .map(result => Some(result))
+      CanonicalDesign
+        .labelsFingerprint(labels)
+        .map(result => Some(result))
     else Right(None)
 
   final def compile(
@@ -573,10 +621,10 @@ private[resample4s] final class GeneralDigestStream[A](
         writer.int(key.fold)
         encoder.encode(value, writer) match
           case Left(error) => failure = Some(error)
-          case Right(_)    => failure = writer.error
+          case Right(_) => failure = writer.error
       failure match
         case Some(error) => Left(error)
-        case None        => accumulator.finish()
+        case None => accumulator.finish()
     }
 
 private[resample4s] final class ExactDigestStream(
@@ -603,7 +651,7 @@ private[resample4s] final class ExactDigestStream(
         repeat += 1
       writer.error match
         case Some(error) => Left(error)
-        case None        => accumulator.finish()
+        case None => accumulator.finish()
     }
 
 private[resample4s] object CanonicalAssignment:
@@ -709,13 +757,14 @@ object Compiled:
       () => new ExactDigestStream(space, plan.shape, partitions)
     )
 
-/** A verification artifact for a compiled plan.
-  *
-  * A receipt cannot reconstruct a design. Verification requires the caller to
-  * supply the design, index space, population fingerprint, and matching digest
-  * provider. Even a cryptographic provider does not authenticate a receipt
-  * without trusted storage or a signature outside Resample4s.
-  */
+/**
+ * A verification artifact for a compiled plan.
+ *
+ * A receipt cannot reconstruct a design. Verification requires the caller to
+ * supply the design, index space, population fingerprint, and matching digest
+ * provider. Even a cryptographic provider does not authenticate a receipt
+ * without trusted storage or a signature outside Resample4s.
+ */
 final class PlanReceipt private[resample4s] (
     val algorithm: AlgorithmId,
     val design: ContentDigest,
@@ -738,11 +787,11 @@ final class PlanReceipt private[resample4s] (
     other match
       case that: PlanReceipt =>
         algorithm == that.algorithm &&
-          design == that.design &&
-          FingerprintEquality.equal(population, that.population) &&
-          sameOptionalDigest(labels, that.labels) &&
-          seed.value == that.seed.value &&
-          assignment == that.assignment
+        design == that.design &&
+        FingerprintEquality.equal(population, that.population) &&
+        sameOptionalDigest(labels, that.labels) &&
+        seed.value == that.seed.value &&
+        assignment == that.assignment
       case _ => false
 
   override def hashCode(): Int =
@@ -803,7 +852,7 @@ extension (receipt: PlanReceipt)
                     )
                   then Left(ReceiptError.Mismatch(ReceiptComponent.Labels))
                   else if receipt.algorithm != fresh.algorithm ||
-                      receipt.design != fresh.design
+                    receipt.design != fresh.design
                   then Left(ReceiptError.Mismatch(ReceiptComponent.Design))
                   else if receipt.assignment != fresh.assignment then
                     Left(
@@ -817,5 +866,5 @@ private[resample4s] def sameOptionalDigest(
 ): Boolean =
   (left, right) match
     case (Some(first), Some(second)) => first == second
-    case (None, None)                => true
-    case _                           => false
+    case (None, None) => true
+    case _ => false

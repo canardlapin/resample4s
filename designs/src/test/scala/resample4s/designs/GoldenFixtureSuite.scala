@@ -9,7 +9,7 @@ final class GoldenFixtureSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def labels(values: Int*): Labels =
     right(Labels.dense(ints(values*)))
@@ -90,15 +90,13 @@ final class GoldenFixtureSuite extends munit.FunSuite:
         ),
         "leave-one-out" -> vector(
           right(
-            right(LeaveOneOut().compile(space, seed))
-              .plan
+            right(LeaveOneOut().compile(space, seed)).plan
               .at(UnitKey(0, 5))
           ).assessment
         ),
         "leave-one-group-out" -> vector(
           right(
-            right(LeaveOneGroupOut(groups).compile(space, seed))
-              .plan
+            right(LeaveOneGroupOut(groups).compile(space, seed)).plan
               .at(UnitKey(0, 2))
           ).assessment
         ),
@@ -120,8 +118,7 @@ final class GoldenFixtureSuite extends munit.FunSuite:
         ),
         "delete-one" -> vector(
           right(
-            right(Jackknife.delete1.compile(space, seed))
-              .plan
+            right(Jackknife.delete1.compile(space, seed)).plan
               .at(UnitKey(0, 6))
           ).assessment
         ),
@@ -143,8 +140,7 @@ final class GoldenFixtureSuite extends munit.FunSuite:
         ),
         "permutation" -> vector(
           right(
-            right(PermutationDesign(1).compile(space, seed))
-              .plan
+            right(PermutationDesign(1).compile(space, seed)).plan
               .at(UnitKey(0, 0))
           )
         ),

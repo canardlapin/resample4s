@@ -2,11 +2,12 @@ package resample4s.core
 
 import scala.collection.mutable
 
-/** Canonical equivalence classes over population ordinals.
-  *
-  * Factories defensively copy and recode classes by ascending minimum member
-  * ordinal, making bijective raw-code changes observationally irrelevant.
-  */
+/**
+ * Canonical equivalence classes over population ordinals.
+ *
+ * Factories defensively copy and recode classes by ascending minimum member
+ * ordinal, making bijective raw-code changes observationally irrelevant.
+ */
 final class Labels private (
     private val codes: IArray[Int],
     val cardinality: Int
@@ -21,20 +22,22 @@ final class Labels private (
 
   private[resample4s] def unsafeAt(index: Int): Int = codes(index)
 
-  /** Projects canonical labels through a non-empty selection whose codomain is
-    * this label population.
-    *
-    * The caller is internal because those two facts have already been
-    * established by a validated `Split` and its compiled design. Classes that
-    * are absent from the selection are removed and the remainder are
-    * canonically recoded.
-    */
+  /**
+   * Projects canonical labels through a non-empty selection whose codomain is
+   * this label population.
+   *
+   * The caller is internal because those two facts have already been
+   * established by a validated `Split` and its compiled design. Classes that
+   * are absent from the selection are removed and the remainder are
+   * canonically recoded.
+   */
   private[resample4s] def projectUnsafe(selection: Selection): Labels =
     val selected = new Array[Int](selection.domain)
     var index = 0
-    while index < selection.domain do
-      selected(index) = codes(selection.unsafeAt(index))
+    selection.foreachIndex { ordinal =>
+      selected(index) = codes(ordinal)
       index += 1
+    }
     Labels.canonicalize(IArray.unsafeFromArray(selected), selection.domain)
 
   override def equals(other: Any): Boolean =
@@ -117,6 +120,53 @@ object Labels:
     if codes.length != n then Left(DesignError.LengthMismatch(n, codes.length))
     else if n == 0 then Left(DesignError.EmptyPopulation)
     else Right(canonicalize(codes, n))
+
+  /**
+   * Validates already-dense codes `0 .. k-1` without remapping class identity.
+   *
+   * Use for fold-of-row assignments where fold `i` must remain fold `i`. Prefer
+   * [[dense]] for group/stratum codes whose raw integers are only labels.
+   */
+  def retained(codes: IArray[Int]): Either[DesignError, Labels] =
+    retained(codes, codes.length)
+
+  def retained(codes: IArray[Int], n: Int): Either[DesignError, Labels] =
+    if codes.length != n then Left(DesignError.LengthMismatch(n, codes.length))
+    else if n == 0 then Left(DesignError.EmptyPopulation)
+    else
+      var maximum = -1
+      var index = 0
+      while index < n do
+        val code = codes(index)
+        if code > maximum then maximum = code
+        index += 1
+      if maximum < 0 then Left(DesignError.InvalidCardinality(0))
+      else
+        val cardinality = maximum + 1
+        val present = new Array[Boolean](cardinality)
+        val owned = new Array[Int](n)
+        index = 0
+        var failure: Option[DesignError] = None
+        while index < n && failure.isEmpty do
+          val code = codes(index)
+          if code < 0 || code >= cardinality then
+            failure = Some(DesignError.InvalidLabel(index, code, cardinality))
+          else
+            present(code) = true
+            owned(index) = code
+          index += 1
+        failure match
+          case Some(error) => Left(error)
+          case None =>
+            var code = 0
+            var missing: Option[Int] = None
+            while code < cardinality && missing.isEmpty do
+              if !present(code) then missing = Some(code)
+              code += 1
+            missing match
+              case Some(value) => Left(DesignError.MissingLabel(value))
+              case None =>
+                Right(new Labels(IArray.unsafeFromArray(owned), cardinality))
 
   private def canonicalize(codes: IArray[Int], n: Int): Labels =
     val minima = mutable.HashMap.empty[Int, Int]

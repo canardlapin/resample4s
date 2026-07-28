@@ -7,8 +7,7 @@ final class DeleteOneJackknife private[designs] ()
   private val descriptor =
     DesignSupport.descriptor("jackknife-delete-one/v1")
 
-  val definition
-      : DesignDefinition[Split[Selection], Coverage.ExactOnce] =
+  val definition: DesignDefinition[Split[Selection], Coverage.ExactOnce] =
     DesignDefinition.exactOncePartitions(descriptor) { context =>
       val n = context.space.size
       if n < 2 then Left(DesignError.DegenerateSplit(n, 1))
@@ -135,7 +134,8 @@ private[designs] object DeleteDSupport:
                 .fromSeed(seeds(key.repeat))
                 .nextBigIntBoundedUnsafe(count)
                 ._2
-            split(n, delete, rank),
+            split(n, delete, rank)
+          ,
           CanonicalAssignmentEncoder.assessmentOnlySplit
         )
     }

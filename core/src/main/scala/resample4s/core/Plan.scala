@@ -21,23 +21,24 @@ object PlanShape:
 sealed trait Coverage
 
 object Coverage:
-  /** Evidence that assessment selections partition the population exactly once
-    * within each repeat.
-    */
+  /**
+   * Evidence that assessment selections partition the population exactly once
+   * within each repeat.
+   */
   sealed trait Exact extends Coverage
 
-  /** Evidence that the plan has exactly one repeat and its assessment
-    * selections partition the population exactly once.
-    *
-    * This is the stronger capability required by consumers that reconstruct
-    * one out-of-fold value per input row. A repeated exact plan remains
-    * [[Exact]], but is not [[ExactOnce]] because it assesses every row once per
-    * repeat.
-    */
+  /**
+   * Evidence that the plan has exactly one repeat and its assessment
+   * selections partition the population exactly once.
+   *
+   * This is the stronger capability required by consumers that reconstruct
+   * one out-of-fold value per input row. A repeated exact plan remains
+   * [[Exact]], but is not [[ExactOnce]] because it assesses every row once per
+   * repeat.
+   */
   sealed trait ExactOnce extends Exact
 
-private final class UnitKeyRange(shape: PlanShape)
-    extends IndexedSeq[UnitKey]:
+private final class UnitKeyRange(shape: PlanShape) extends IndexedSeq[UnitKey]:
   def length: Int = shape.unitCount
   def apply(index: Int): UnitKey =
     if index < 0 || index >= length then
@@ -47,24 +48,26 @@ private final class UnitKeyRange(shape: PlanShape)
       fold = index % shape.foldsPerRepeat
     )
 
-/** An immutable, lazy plan backed by a pure unit generator.
-  *
-  * Repeated access recomputes a unit. `materialized` performs one explicit
-  * eager traversal and returns a separate vector-backed plan; it never installs
-  * a cache in this value.
-  */
+/**
+ * An immutable, lazy plan backed by a pure unit generator.
+ *
+ * Repeated access recomputes a unit. `materialized` performs one explicit
+ * eager traversal and returns a separate vector-backed plan; it never installs
+ * a cache in this value.
+ */
 final class Plan[+A, +Cov <: Coverage] private (
     val shape: PlanShape,
     private val generate: UnitKey => A
 ):
-  /** The first unit. Every validated `PlanShape` has at least one repeat and
-    * fold, so this accessor is total.
-    */
+  /**
+   * The first unit. Every validated `PlanShape` has at least one repeat and
+   * fold, so this accessor is total.
+   */
   def first: A = generate(UnitKey(0, 0))
 
   def at(key: UnitKey): Either[UnknownUnit, A] =
     if key.repeat >= 0 && key.repeat < shape.repeats &&
-        key.fold >= 0 && key.fold < shape.foldsPerRepeat
+      key.fold >= 0 && key.fold < shape.foldsPerRepeat
     then Right(generate(key))
     else Left(UnknownUnit(key, shape))
 
@@ -73,14 +76,32 @@ final class Plan[+A, +Cov <: Coverage] private (
   def iterator: Iterator[(UnitKey, A)] =
     keys.iterator.map(key => (key, generate(key)))
 
-  def map[B](function: A => B): Plan[B, Cov] =
+  /**
+   * Maps unit values and forgets coverage.
+   *
+   * Coverage is a property of a split schedule, not of an arbitrary payload.
+   * Public mapping therefore returns [[Coverage]] only. Library code that has
+   * established preservation may use [[mapPreservingCoverage]].
+   */
+  def map[B](function: A => B): Plan[B, Coverage] =
+    Plan.fromGenerator(shape, key => function(generate(key)))
+
+  /**
+   * Maps unit values while retaining [[Cov]].
+   *
+   * Only for transformations the library has proven preserve the coverage
+   * witness, such as NestedCrossValidation's outer-analysis embedding.
+   */
+  private[resample4s] def mapPreservingCoverage[B](
+      function: A => B
+  ): Plan[B, Cov] =
     Plan.fromGenerator(shape, key => function(generate(key)))
 
   def zip[B, C2 <: Coverage](
       that: Plan[B, C2]
-  ): Either[ShapeMismatch, Plan[(A, B), Cov | C2]] =
+  ): Either[ShapeMismatch, Plan[(A, B), Coverage]] =
     if shape.repeats != that.shape.repeats ||
-        shape.foldsPerRepeat != that.shape.foldsPerRepeat
+      shape.foldsPerRepeat != that.shape.foldsPerRepeat
     then Left(ShapeMismatch(shape, that.shape))
     else
       Right(
@@ -108,7 +129,21 @@ object Plan:
   ): Plan[A, Cov] =
     new Plan(shape, generate)
 
-  given [A, Cov <: Coverage]: CanEqual[Plan[A, Cov], Plan[A, Cov]] =
-    CanEqual.derived
+  /**
+   * Finite comparison of generated units. Plans themselves are not equal by
+   * reference under [[CanEqual]]; use this when an explicit unit-wise check is
+   * required.
+   */
+  def sameUnits[A](
+      left: Plan[A, ?],
+      right: Plan[A, ?]
+  )(using CanEqual[A, A]): Boolean =
+    left.shape == right.shape &&
+      left.keys.iterator.forall { key =>
+        (left.at(key), right.at(key)) match
+          case (Right(leftValue), Right(rightValue)) =>
+            leftValue == rightValue
+          case _ => false
+      }
 
 type AnyPlan[+A] = Plan[A, Coverage]

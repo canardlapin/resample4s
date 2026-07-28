@@ -14,7 +14,7 @@ final class AlgebraSuite extends munit.ScalaCheckSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   property("law 1: pullback is functorial") {
     val caseGen =

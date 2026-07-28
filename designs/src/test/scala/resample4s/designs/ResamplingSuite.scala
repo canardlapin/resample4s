@@ -9,7 +9,7 @@ final class ResamplingSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def vector(value: Reindexing): Vector[Int] =
     Vector.tabulate(value.domain)(index => value.at(index).toOption.get)
@@ -29,7 +29,10 @@ final class ResamplingSuite extends munit.FunSuite:
         named: Design[Split[Draw], Coverage],
         explicit: Design[Split[Draw], Coverage]
     ): Unit =
-      assertEquals(named.randomizationKey.value, explicit.randomizationKey.value)
+      assertEquals(
+        named.randomizationKey.value,
+        explicit.randomizationKey.value
+      )
       assertEquals(named.fingerprint, explicit.fingerprint)
       (named.compile(space, seed), explicit.compile(space, seed)) match
         case (Left(namedError), Left(explicitError)) =>
@@ -113,9 +116,11 @@ final class ResamplingSuite extends munit.FunSuite:
       )
     }
     assert(
-      plan.materialize.map(_._2.analysis.toIArray).map(values =>
-        Vector.tabulate(values.length)(values(_))
-      ).distinct.size >= 2
+      plan.materialize
+        .map(_._2.analysis.toIArray)
+        .map(values => Vector.tabulate(values.length)(values(_)))
+        .distinct
+        .size >= 2
     )
   }
 
@@ -194,9 +199,11 @@ final class ResamplingSuite extends munit.FunSuite:
 
   test("Redraw matches the exact n=2 conditioned and exhaustion oracle") {
     val outcomes =
-      Vector.range(0, 2).flatMap(first =>
-        Vector.range(0, 2).map(second => Vector(first, second))
-      )
+      Vector
+        .range(0, 2)
+        .flatMap(first =>
+          Vector.range(0, 2).map(second => Vector(first, second))
+        )
     val acceptedOutcomes =
       outcomes.filter(values => values.distinct.size < 2)
     val rejectedOutcomes =
@@ -331,10 +338,10 @@ final class ResamplingSuite extends munit.FunSuite:
           var present = false
           var index = 0
           while index < split.assessment.domain && !present do
-            present =
-              groups.at(split.assessment.at(index).toOption.get)
-                .toOption
-                .get == group
+            present = groups
+              .at(split.assessment.at(index).toOption.get)
+              .toOption
+              .get == group
             index += 1
           present
         }
@@ -493,9 +500,7 @@ final class ResamplingSuite extends munit.FunSuite:
     val expected = times.toDouble / counts.length.toDouble
     val chiSquare =
       counts.iterator
-        .map(count =>
-          math.pow(count.toDouble - expected, 2.0) / expected
-        )
+        .map(count => math.pow(count.toDouble - expected, 2.0) / expected)
         .sum
     assert(
       chiSquare < 27.88,
@@ -559,9 +564,7 @@ final class ResamplingSuite extends munit.FunSuite:
         )
       ).plan
     val identities =
-      repeatedIdentity.materialize.map((_, permutation) =>
-        vector(permutation)
-      )
+      repeatedIdentity.materialize.map((_, permutation) => vector(permutation))
     assertEquals(identities.length, 5)
     assertEquals(identities.distinct, Vector(Vector(0)))
   }
@@ -614,7 +617,5 @@ final class ResamplingSuite extends munit.FunSuite:
       else
         Vector
           .range(start, n - remaining + 1)
-          .flatMap(value =>
-            loop(value + 1, remaining - 1).map(value +: _)
-          )
+          .flatMap(value => loop(value + 1, remaining - 1).map(value +: _))
     loop(0, size)

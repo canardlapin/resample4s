@@ -58,30 +58,31 @@ private[resample4s] object Identifiers:
 
   def field(value: String): Boolean =
     value.nonEmpty &&
-    value.length <= 128 &&
-    isLower(value.charAt(0)) &&
-    value.forall(character =>
-      isLower(character) ||
-        (character >= '0' && character <= '9') ||
-        character == '-' ||
-        character == '_' ||
-        character == '.'
-    )
+      value.length <= 128 &&
+      isLower(value.charAt(0)) &&
+      value.forall(character =>
+        isLower(character) ||
+          (character >= '0' && character <= '9') ||
+          character == '-' ||
+          character == '_' ||
+          character == '.'
+      )
 
   private def version(value: String): Boolean =
     value.nonEmpty &&
-    value.charAt(0) >= '1' &&
-    value.charAt(0) <= '9' &&
-    value.forall(_.isDigit)
+      value.charAt(0) >= '1' &&
+      value.charAt(0) <= '9' &&
+      value.forall(_.isDigit)
 
   private def isLower(value: Char): Boolean =
     value >= 'a' && value <= 'z'
 
-/** Writer for the closed, versioned canonical value grammar.
-  *
-  * Each operation emits a type tag and a length-framed value. Consumers cannot
-  * inject unframed bytes.
-  */
+/**
+ * Writer for the closed, versioned canonical value grammar.
+ *
+ * Each operation emits a type tag and a length-framed value. Consumers cannot
+ * inject unframed bytes.
+ */
 final class CanonicalWriter private[resample4s] (
     sink: IArray[Byte] => Either[DigestError, Unit]
 ):
@@ -129,10 +130,11 @@ final class CanonicalWriter private[resample4s] (
       rawByte(7)
       text(tag)
 
-  /** Internal path for constants or values already validated by a smart
-    * constructor. A failure here means a Resample4s invariant was broken, never
-    * malformed public input.
-    */
+  /**
+   * Internal path for constants or values already validated by a smart
+   * constructor. A failure here means a Resample4s invariant was broken, never
+   * malformed public input.
+   */
   private[resample4s] def textUnchecked(value: String): Unit =
     text(value) match
       case Right(_) => ()
@@ -188,7 +190,7 @@ final class CanonicalWriter private[resample4s] (
     if failure.isEmpty then
       sink(value) match
         case Left(error) => failure = Some(error)
-        case Right(_)    => ()
+        case Right(_) => ()
 
 private[resample4s] final class CanonicalBuffer private[resample4s] ():
   private val output = ArrayBuffer.empty[IArray[Byte]]
@@ -225,7 +227,8 @@ object DescriptorValue:
       out.textUnchecked(value)
 
   private final class FractionValue(value: Fraction) extends DescriptorValue:
-    private[resample4s] def write(out: CanonicalWriter): Unit = out.fraction(value)
+    private[resample4s] def write(out: CanonicalWriter): Unit =
+      out.fraction(value)
 
   private final class SequenceValue(
       values: IArray[DescriptorValue]
@@ -261,10 +264,7 @@ object DescriptorValue:
     out.variantUnchecked(role)
     out.int(value.codomain)
     out.beginSequenceUnchecked(value.domain)
-    var index = 0
-    while index < value.domain do
-      out.int(value.unsafeAt(index))
-      index += 1
+    value.foreachIndex(out.int)
 
   def int(value: Int): DescriptorValue = new IntValue(value)
   def long(value: Long): DescriptorValue = new LongValue(value)
@@ -273,7 +273,7 @@ object DescriptorValue:
   def text(value: String): Either[DesignError, DescriptorValue] =
     Utf8.encode(value) match
       case Left(reason) => Left(DesignError.InvalidText(reason))
-      case Right(_)     => Right(new TextValue(value))
+      case Right(_) => Right(new TextValue(value))
 
   def fraction(value: Fraction): DescriptorValue =
     new FractionValue(value)
@@ -300,11 +300,12 @@ object DescriptorValue:
   ): DescriptorValue =
     new VariantValue(tag, value)
 
-  /** Compact semantic descriptor value for an immutable selection split.
-    *
-    * The value retains the validated split and streams both roles directly.
-    * It does not construct or retain one descriptor node per ordinal.
-    */
+  /**
+   * Compact semantic descriptor value for an immutable selection split.
+   *
+   * The value retains the validated split and streams both roles directly.
+   * It does not construct or retain one descriptor node per ordinal.
+   */
   private[resample4s] def selectionSplit(
       value: Split[Selection]
   ): DescriptorValue =
@@ -317,8 +318,7 @@ object AlgorithmId:
     if Identifiers.schema(value) then Right(value)
     else Left(DesignError.InvalidIdentifier("algorithm", value))
 
-  extension (id: AlgorithmId)
-    def value: String = id
+  extension (id: AlgorithmId) def value: String = id
 
   private[resample4s] def unsafe(value: String): AlgorithmId = value
 
@@ -500,7 +500,7 @@ private[resample4s] object CanonicalDesign:
       write(out)
       out.error match
         case Some(error) => Left(error)
-        case None        => accumulator.finish()
+        case None => accumulator.finish()
     }
 
   private def writeLabels(labels: Labels, out: CanonicalWriter): Unit =

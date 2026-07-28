@@ -9,10 +9,9 @@ final class CostGuardrailSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
-  private final class CountingBootstrapObserver
-      extends BootstrapWorkObserver:
+  private final class CountingBootstrapObserver extends BootstrapWorkObserver:
     var candidates = 0L
     var preflightGroupIds = 0L
     var emittedRows = 0L
@@ -277,9 +276,11 @@ final class CostGuardrailSuite extends munit.FunSuite:
     val expected =
       sizes.map { size =>
         val minimum = referenceLoads.min
-        val fold = priority.find(referenceLoads(_) == minimum).getOrElse(
-          fail("the non-empty priority permutation must select a fold")
-        )
+        val fold = priority
+          .find(referenceLoads(_) == minimum)
+          .getOrElse(
+            fail("the non-empty priority permutation must select a fold")
+          )
         referenceLoads(fold) += size
         fold
       }
@@ -299,7 +300,8 @@ final class CostGuardrailSuite extends munit.FunSuite:
       s"${wide.comparisonCount} heap comparisons exceeded the logarithmic bound"
     )
 
-    val groupCodes = IArray.unsafeFromArray(Array.tabulate(groupCount)(identity))
+    val groupCodes =
+      IArray.unsafeFromArray(Array.tabulate(groupCount)(identity))
     val groups = right(Labels.dense(groupCodes, groupCount))
     val space = right(IndexSpace.of(groupCount))
     val context =
@@ -372,7 +374,8 @@ final class CostGuardrailSuite extends munit.FunSuite:
             )(
               key =>
                 evaluations += 1
-                key.repeat,
+                key.repeat
+              ,
               new CanonicalAssignmentEncoder[Int]:
                 def encode(
                     value: Int,

@@ -7,8 +7,7 @@ final class FoldPartition private (
     val folds: Int
 ):
   def assignmentAt(index: Int): Either[OutOfDomain, Int] =
-    if index >= 0 && index < populationSize then
-      Right(assignmentUnsafe(index))
+    if index >= 0 && index < populationSize then Right(assignmentUnsafe(index))
     else Left(OutOfDomain(index, populationSize))
 
   def block(fold: Int): Either[UnknownFold, Selection] =
@@ -23,27 +22,27 @@ final class FoldPartition private (
   private[resample4s] def assignmentUnsafe(index: Int): Int =
     assignments match
       case Some(values) => values(index)
-      case None         => index
+      case None => index
 
   private[resample4s] def blockSizeUnsafe(fold: Int): Int =
     packedMembers match
       case Some(values) => values(fold).length
-      case None         => 1
+      case None => 1
 
   private[resample4s] def blockMemberUnsafe(fold: Int, index: Int): Int =
     packedMembers match
       case Some(values) => values(fold)(index)
-      case None         => fold
+      case None => fold
 
   private[resample4s] def blockMembersUnsafe(fold: Int): IArray[Int] =
     packedMembers match
       case Some(values) => values(fold)
-      case None         => OwnedArrays.ints(fold)
+      case None => OwnedArrays.ints(fold)
 
   private[resample4s] def residentElementsUpperBound: Long =
     assignments match
       case Some(_) => 2L * populationSize.toLong
-      case None    => 0L
+      case None => 0L
 
   override def equals(other: Any): Boolean =
     other match
@@ -74,8 +73,7 @@ object FoldPartition:
       assign: IArray[Int]
   ): Either[DesignError, FoldPartition] =
     if n < 1 then Left(DesignError.EmptyPopulation)
-    else if k < 1 || k > n then
-      Left(DesignError.InvalidFoldCount(k, n))
+    else if k < 1 || k > n then Left(DesignError.InvalidFoldCount(k, n))
     else if assign.length != n then
       Left(DesignError.LengthMismatch(n, assign.length))
     else
@@ -130,14 +128,31 @@ final class Split[+A <: Reindexing] private (
     val analysis: A,
     val assessment: Selection
 ):
+  /** Familiar alias for [[analysis]] (training / fitting rows). */
+  def train: A = analysis
+
+  /** Familiar alias for [[assessment]] (test / out-of-fold rows). */
+  def test: Selection = assessment
+
   override def equals(other: Any): Boolean =
     other match
       case that: Split[?] =>
+        analysis.kind == that.analysis.kind &&
         ReindexingEquality.equal(analysis, that.analysis) &&
-          ReindexingEquality.equal(assessment, that.assessment)
+        ReindexingEquality.equal(assessment, that.assessment)
       case _ => false
 
-  override def hashCode(): Int = 31 * analysis.hashCode() + assessment.hashCode()
+  /** Ordinal equality of analysis and assessment, ignoring analysis kind. */
+  def sameMapping(that: Split[?]): Boolean =
+    ReindexingEquality.equal(analysis, that.analysis) &&
+      ReindexingEquality.equal(assessment, that.assessment)
+
+  override def hashCode(): Int =
+    31 * (31 * analysis.kind.ordinal + analysis.hashCode()) +
+      assessment.hashCode()
+
+  override def toString: String =
+    s"Split(train=${Rendering.reindexing(analysis)}, test=${Rendering.reindexing(assessment)})"
 
 object Split:
   def of[A <: Reindexing](
@@ -149,20 +164,24 @@ object Split:
     else if analysis.domain == 0 then Left(DesignError.EmptyAnalysis)
     else
       val support = analysis.support
-      var left = 0
-      var right = 0
+      val supportCursor = support.cursor
+      val assessmentCursor = assessment.cursor
+      var supportHas = supportCursor.hasNext
+      var assessmentHas = assessmentCursor.hasNext
+      var leftValue = if supportHas then supportCursor.nextInt() else 0
+      var rightValue = if assessmentHas then assessmentCursor.nextInt() else 0
       var overlap: Option[Int] = None
-      while left < support.domain && right < assessment.domain &&
-          overlap.isEmpty
-      do
-        val leftValue = support.unsafeAt(left)
-        val rightValue = assessment.unsafeAt(right)
+      while supportHas && assessmentHas && overlap.isEmpty do
         if leftValue == rightValue then overlap = Some(leftValue)
-        else if leftValue < rightValue then left += 1
-        else right += 1
+        else if leftValue < rightValue then
+          if supportCursor.hasNext then leftValue = supportCursor.nextInt()
+          else supportHas = false
+        else if assessmentCursor.hasNext then
+          rightValue = assessmentCursor.nextInt()
+        else assessmentHas = false
       overlap match
         case Some(value) => Left(DesignError.OverlappingRoles(value))
-        case None        => Right(new Split(analysis, assessment))
+        case None => Right(new Split(analysis, assessment))
 
   private[resample4s] def unsafe[A <: Reindexing](
       analysis: A,

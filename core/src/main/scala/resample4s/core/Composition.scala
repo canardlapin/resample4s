@@ -18,15 +18,16 @@ object Compose:
       left: Reindexing,
       right: Reindexing
   ): IArray[Int] =
+    val leftValues = left.toIArray
     val result = new Array[Int](right.domain)
+    val rightCursor = right.cursor
     var index = 0
-    while index < right.domain do
-      result(index) = left.unsafeAt(right.unsafeAt(index))
+    while rightCursor.hasNext do
+      result(index) = leftValues(rightCursor.nextInt())
       index += 1
     IArray.unsafeFromArray(result)
 
-  private def draw[F <: Reindexing, G <: Reindexing]
-      : Compose.Aux[F, G, Draw] =
+  private def draw[F <: Reindexing, G <: Reindexing]: Compose.Aux[F, G, Draw] =
     new Compose[F, G]:
       type Out = Draw
       private[resample4s] def compose(left: F, right: G): Draw =

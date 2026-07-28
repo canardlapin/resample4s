@@ -55,4 +55,4 @@ class BenchmarkProtocolSuite extends munit.FunSuite:
   private def right[A](result: Either[?, A]): A =
     result match
       case Right(value) => value
-      case Left(error)  => fail(error.toString)
+      case Left(error) => fail(error.toString)

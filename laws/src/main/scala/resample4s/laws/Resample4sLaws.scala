@@ -25,7 +25,7 @@ object ReindexingLaws:
         case (Right(first), Right(second)) =>
           iarrayEqual(first, second)
         case (Left(_), Left(_)) => true
-        case _                  => false
+        case _ => false
     }
 
   def identity[A: ClassTag](
@@ -36,7 +36,7 @@ object ReindexingLaws:
         case Left(_) => false
         case Right(identity) =>
           pull(values, identity) match
-            case Left(_)         => false
+            case Left(_) => false
             case Right(observed) => iarrayEqual(values, observed)
     }
 
@@ -45,7 +45,7 @@ object ReindexingLaws:
       val (selection, permutation) = injection.factor
       selection.after(permutation) match
         case Right(observed) => observed == injection
-        case Left(_)         => false
+        case Left(_) => false
     }
 
   def permutationGroup(
@@ -55,7 +55,7 @@ object ReindexingLaws:
   ): Prop =
     Prop.secure {
       if first.domain != second.domain ||
-          first.domain != third.domain
+        first.domain != third.domain
       then false
       else
         Permutation.identity(first.domain) match
@@ -153,7 +153,7 @@ object PlanLaws:
                   case Left(_) => valid = false
                   case Right(ordinal) =>
                     if ordinal < 0 || ordinal >= populationSize ||
-                        reconstructed(ordinal) >= 0
+                      reconstructed(ordinal) >= 0
                     then valid = false
                     else reconstructed(ordinal) = ordinal
                 index += 1
@@ -173,7 +173,7 @@ object PlanLaws:
     Prop.secure {
       plan.iterator.forall { (_, split) =>
         if split.analysis.codomain != groups.size ||
-            split.assessment.codomain != groups.size
+          split.assessment.codomain != groups.size
         then false
         else
           val analysis = membership(split.analysis.support, groups.size)
@@ -192,8 +192,7 @@ object PlanLaws:
                   case Left(_) => valid = false
                   case Right(group) =>
                     if role < 0 then valid = false
-                    else if groupRole(group) < 0 then
-                      groupRole(group) = role
+                    else if groupRole(group) < 0 then groupRole(group) = role
                     else if groupRole(group) != role then valid = false
                 row += 1
               valid
@@ -211,7 +210,7 @@ object PlanLaws:
       var valid = true
       while row < strata.size && valid do
         strata.at(row) match
-          case Left(_)        => valid = false
+          case Left(_) => valid = false
           case Right(stratum) => totals(stratum) += 1
         row += 1
 
@@ -228,7 +227,7 @@ object PlanLaws:
                 var index = 0
                 while index < split.assessment.domain && valid do
                   split.assessment.at(index).flatMap(strata.at) match
-                    case Left(_)        => valid = false
+                    case Left(_) => valid = false
                     case Right(stratum) => counts(stratum) += 1
                   index += 1
                 var stratum = 0
@@ -237,8 +236,7 @@ object PlanLaws:
                   val upper =
                     (totals(stratum) + plan.shape.foldsPerRepeat - 1) /
                       plan.shape.foldsPerRepeat
-                  valid =
-                    counts(stratum) == lower || counts(stratum) == upper
+                  valid = counts(stratum) == lower || counts(stratum) == upper
                   stratum += 1
           fold += 1
         repeat += 1
@@ -278,15 +276,16 @@ object NestedCrossValidationLaws:
           ) match
             case (Right(analysisOverlap), Right(assessmentOverlap)) =>
               analysisOverlap.domain == 0 &&
-                assessmentOverlap.domain == 0
+              assessmentOverlap.domain == 0
             case _ => false
         }
       }
     }
 
-  /** Inner assessments partition the outer analysis exactly once, and every
-    * inner split reconstructs that outer analysis.
-    */
+  /**
+   * Inner assessments partition the outer analysis exactly once, and every
+   * inner split reconstructs that outer analysis.
+   */
   def innerCoverage[Cov <: Coverage](
       plan: Plan[NestedFold, Cov],
       populationSize: Int
@@ -294,7 +293,7 @@ object NestedCrossValidationLaws:
     Prop.secure {
       plan.iterator.forall { (_, nested) =>
         if nested.outer.analysis.codomain != populationSize ||
-            nested.outer.assessment.codomain != populationSize
+          nested.outer.assessment.codomain != populationSize
         then false
         else
           val expected = membership(nested.outer.analysis, populationSize)
@@ -303,29 +302,26 @@ object NestedCrossValidationLaws:
           val innerUnits = nested.inner.iterator
           while innerUnits.hasNext && valid do
             val (_, inner) = innerUnits.next()
-            valid =
-              inner.analysis.codomain == populationSize &&
-                inner.assessment.codomain == populationSize &&
-                (
-                  inner.analysis.union(inner.assessment) match
-                    case Right(reconstructed) =>
-                      reconstructed == nested.outer.analysis
-                    case Left(_) => false
-                )
+            valid = inner.analysis.codomain == populationSize &&
+              inner.assessment.codomain == populationSize &&
+              (
+                inner.analysis.union(inner.assessment) match
+                  case Right(reconstructed) =>
+                    reconstructed == nested.outer.analysis
+                  case Left(_) => false
+              )
             var index = 0
             while index < inner.assessment.domain && valid do
               inner.assessment.at(index) match
                 case Left(_) => valid = false
                 case Right(ordinal) =>
-                  if ordinal < 0 || ordinal >= populationSize then
-                    valid = false
+                  if ordinal < 0 || ordinal >= populationSize then valid = false
                   else counts(ordinal) += 1
               index += 1
           var ordinal = 0
           while ordinal < populationSize && valid do
-            valid =
-              counts(ordinal) ==
-                (if expected.exists(_(ordinal)) then 1 else 0)
+            valid = counts(ordinal) ==
+              (if expected.exists(_(ordinal)) then 1 else 0)
             ordinal += 1
           valid
       }
@@ -349,9 +345,10 @@ object NestedCrossValidationLaws:
         index += 1
       if valid then Some(result) else None
 
-/** Universal bootstrap semantics; distributional checks are deliberately not
-  * included here.
-  */
+/**
+ * Universal bootstrap semantics; distributional checks are deliberately not
+ * included here.
+ */
 object ResamplingLaws:
   def bootstrapSplit(
       split: Split[Draw],
@@ -360,9 +357,9 @@ object ResamplingLaws:
   ): Prop =
     Prop.secure {
       if populationSize < 0 ||
-          split.analysis.codomain != populationSize ||
-          split.assessment.codomain != populationSize ||
-          split.analysis.domain != expectedDraws
+        split.analysis.codomain != populationSize ||
+        split.assessment.codomain != populationSize ||
+        split.analysis.domain != expectedDraws
       then false
       else
         val expectedOob = split.analysis.support.complement
@@ -398,7 +395,7 @@ object ResamplingLaws:
   ): Prop =
     Prop.secure {
       if split.analysis.codomain != embedding.domain ||
-          split.assessment.codomain != embedding.domain
+        split.assessment.codomain != embedding.domain
       then false
       else
         (
@@ -412,8 +409,7 @@ object ResamplingLaws:
             while index < composedDraw.domain && orderPreserved do
               val expected =
                 split.analysis.at(index).flatMap(embedding.at)
-              orderPreserved =
-                expected == composedDraw.at(index)
+              orderPreserved = expected == composedDraw.at(index)
               index += 1
             var ordinal = 0
             var multiplicitiesPreserved = true
@@ -429,13 +425,12 @@ object ResamplingLaws:
             var assessmentPreserved =
               composedAssessment.domain == split.assessment.domain
             while index < composedAssessment.domain &&
-                assessmentPreserved
+              assessmentPreserved
             do
-              assessmentPreserved =
-                split.assessment
-                  .at(index)
-                  .flatMap(embedding.at) ==
-                  composedAssessment.at(index)
+              assessmentPreserved = split.assessment
+                .at(index)
+                .flatMap(embedding.at) ==
+                composedAssessment.at(index)
               index += 1
             orderPreserved &&
             multiplicitiesPreserved &&
@@ -510,13 +505,13 @@ object DesignLaws:
           first.plan.shape.repeats == second.plan.shape.repeats &&
           first.plan.shape.foldsPerRepeat ==
             second.plan.shape.foldsPerRepeat &&
-          first.plan.keys.forall { key =>
-            (first.plan.at(key), second.plan.at(key)) match
-              case (Right(left), Right(right)) => equivalent(left, right)
-              case _                          => false
-          }
+            first.plan.keys.forall { key =>
+              (first.plan.at(key), second.plan.at(key)) match
+                case (Right(left), Right(right)) => equivalent(left, right)
+                case _ => false
+            }
         case (Left(first), Left(second)) => first == second
-        case _                          => false
+        case _ => false
     }
 
   def totalUnits[A, Cov <: Coverage](
@@ -543,12 +538,12 @@ object DesignLaws:
         case Right(compiled) =>
           measurement.residentElements <=
             compiled.cost.residentElementsUpperBound &&
-          compiled.plan.iterator.forall { (_, value) =>
-            measurement.unitWork(value) <=
-              compiled.cost.workPerUnitUpperBound &&
-            measurement.receiptWork(value) <=
-              compiled.cost.receiptWorkPerUnitUpperBound
-          }
+            compiled.plan.iterator.forall { (_, value) =>
+              measurement.unitWork(value) <=
+                compiled.cost.workPerUnitUpperBound &&
+                measurement.receiptWork(value) <=
+                compiled.cost.receiptWorkPerUnitUpperBound
+            }
     }
 
   def receiptReplay[A, Cov <: Coverage](
@@ -665,12 +660,12 @@ object DesignLaws:
         left.plan.shape.repeats == right.plan.shape.repeats &&
         left.plan.shape.foldsPerRepeat ==
           right.plan.shape.foldsPerRepeat &&
-        left.plan.keys.forall { key =>
-          (left.plan.at(key), right.plan.at(key)) match
-            case (Right(firstValue), Right(secondValue)) =>
-              equivalent(firstValue, secondValue)
-            case _ => false
-        }
+          left.plan.keys.forall { key =>
+            (left.plan.at(key), right.plan.at(key)) match
+              case (Right(firstValue), Right(secondValue)) =>
+                equivalent(firstValue, secondValue)
+              case _ => false
+          }
       case (Left(firstError), Left(secondError)) =>
         firstError == secondError
       case _ => false

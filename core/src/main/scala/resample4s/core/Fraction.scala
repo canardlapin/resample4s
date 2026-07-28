@@ -7,9 +7,11 @@ final class Fraction private (val num: Int, val den: Int):
   override def equals(other: Any): Boolean =
     other match
       case that: Fraction => num == that.num && den == that.den
-      case _              => false
+      case _ => false
 
   override def hashCode(): Int = 31 * num + den
+
+  override def toString: String = Rendering.fraction(this)
 
 object Fraction:
   def of(num: Int, den: Int): Either[DesignError, Fraction] =

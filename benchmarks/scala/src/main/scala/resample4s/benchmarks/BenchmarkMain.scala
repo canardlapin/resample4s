@@ -25,13 +25,13 @@ enum Family derives CanEqual:
 
   def id: String =
     this match
-      case KFold             => "kfold"
-      case Stratified        => "stratified"
-      case Grouped           => "grouped"
+      case KFold => "kfold"
+      case Stratified => "stratified"
+      case Grouped => "grouped"
       case GroupedStratified => "grouped_stratified"
-      case MonteCarlo        => "monte_carlo"
-      case Bootstrap         => "bootstrap"
-      case LeaveOneOut       => "loo"
+      case MonteCarlo => "monte_carlo"
+      case Bootstrap => "bootstrap"
+      case LeaveOneOut => "loo"
 
   def contractId: String =
     this match
@@ -49,14 +49,14 @@ enum Family derives CanEqual:
 object Family:
   def parse(value: String): Either[String, Family] =
     value match
-      case "kfold"             => Right(KFold)
-      case "stratified"        => Right(Stratified)
-      case "grouped"           => Right(Grouped)
+      case "kfold" => Right(KFold)
+      case "stratified" => Right(Stratified)
+      case "grouped" => Right(Grouped)
       case "grouped_stratified" => Right(GroupedStratified)
-      case "monte_carlo"       => Right(MonteCarlo)
-      case "bootstrap"         => Right(Bootstrap)
-      case "loo"               => Right(LeaveOneOut)
-      case other               => Left(s"unknown family: $other")
+      case "monte_carlo" => Right(MonteCarlo)
+      case "bootstrap" => Right(Bootstrap)
+      case "loo" => Right(LeaveOneOut)
+      case other => Left(s"unknown family: $other")
 
 final case class BenchmarkCase(
     profile: String,
@@ -93,8 +93,7 @@ final case class ContractEvidence(
 
 final class PreparedResample4s private[benchmarks] (
     val execute: () => Either[String, Observation],
-    val artifacts: () =>
-      Either[String, Vector[(Array[Int], Array[Int])]]
+    val artifacts: () => Either[String, Vector[(Array[Int], Array[Int])]]
 )
 
 final case class Cli(
@@ -122,11 +121,14 @@ private object BenchmarkManifest:
       case Some(header) if header != ExpectedHeader =>
         Left(s"unexpected benchmark manifest header: $header")
       case Some(_) =>
-        lines.drop(1).zipWithIndex.foldLeft(
-          Right(Vector.empty): Either[String, Vector[BenchmarkCase]]
-        ) { case (result, (line, index)) =>
-          result.flatMap(cases => parseLine(line, index + 2).map(cases :+ _))
-        }
+        lines
+          .drop(1)
+          .zipWithIndex
+          .foldLeft(
+            Right(Vector.empty): Either[String, Vector[BenchmarkCase]]
+          ) { case (result, (line, index)) =>
+            result.flatMap(cases => parseLine(line, index + 2).map(cases :+ _))
+          }
 
   private def parseLine(
       line: String,
@@ -175,18 +177,22 @@ private object BenchmarkManifest:
       field: String,
       line: Int
   ): Either[String, Int] =
-    value.toIntOption.filter(_ > 0).toRight(
-      s"manifest line $line has invalid $field: $value"
-    )
+    value.toIntOption
+      .filter(_ > 0)
+      .toRight(
+        s"manifest line $line has invalid $field: $value"
+      )
 
   private def nonNegativeInt(
       value: String,
       field: String,
       line: Int
   ): Either[String, Int] =
-    value.toIntOption.filter(_ >= 0).toRight(
-      s"manifest line $line has invalid $field: $value"
-    )
+    value.toIntOption
+      .filter(_ >= 0)
+      .toRight(
+        s"manifest line $line has invalid $field: $value"
+      )
 
   private def validate(
       benchmarkCase: BenchmarkCase,
@@ -337,8 +343,7 @@ private object Resample4sRunner:
     def repeated(
         design: RepeatableDesign[Split[Selection], ? <: Coverage.Exact]
     ): Either[String, SelectionDesign] =
-      if benchmarkCase.repeats == 1 then
-        Right(design: SelectionDesign)
+      if benchmarkCase.repeats == 1 then Right(design: SelectionDesign)
       else
         design
           .repeat(benchmarkCase.repeats)
@@ -586,7 +591,7 @@ private object ContractValidator:
           val primary =
             benchmarkCase.family match
               case Family.Stratified => stratumDeviation
-              case Family.Grouped    => foldImbalance
+              case Family.Grouped => foldImbalance
               case Family.GroupedStratified =>
                 groupedStratifiedObjective(
                   benchmarkCase,
@@ -607,21 +612,23 @@ private object ContractValidator:
         s"partition has ${analysis.length + assessment.length} rows, expected $n"
       )
     else
-      increasingAndBounded(analysis, n, "analysis").orElse(
-        increasingAndBounded(assessment, n, "assessment")
-      ).orElse {
-        var left = 0
-        var right = 0
-        var overlap: Option[String] = None
-        while left < analysis.length && right < assessment.length &&
+      increasingAndBounded(analysis, n, "analysis")
+        .orElse(
+          increasingAndBounded(assessment, n, "assessment")
+        )
+        .orElse {
+          var left = 0
+          var right = 0
+          var overlap: Option[String] = None
+          while left < analysis.length && right < assessment.length &&
             overlap.isEmpty
-        do
-          if analysis(left) == assessment(right) then
-            overlap = Some(s"roles overlap at ${analysis(left)}")
-          else if analysis(left) < assessment(right) then left += 1
-          else right += 1
-        overlap
-      }
+          do
+            if analysis(left) == assessment(right) then
+              overlap = Some(s"roles overlap at ${analysis(left)}")
+            else if analysis(left) < assessment(right) then left += 1
+            else right += 1
+          overlap
+        }
 
   private def increasingAndBounded(
       values: Array[Int],
@@ -648,24 +655,26 @@ private object ContractValidator:
     val expectedAssessment =
       benchmarkCase.n * benchmarkCase.fractionNum /
         benchmarkCase.fractionDen
-    splits.zipWithIndex.foldLeft(
-      Right(()): Either[String, Unit]
-    ) { case (result, ((analysis, assessment), unit)) =>
-      result.flatMap { _ =>
-        validatePartition(
-          benchmarkCase.n,
-          analysis,
-          assessment
-        ).toLeft(()).left.map(error => s"unit $unit: $error").flatMap { _ =>
-          if assessment.length == expectedAssessment then Right(())
-          else
-            Left(
-              s"unit $unit assessment size ${assessment.length}, " +
-                s"expected $expectedAssessment"
-            )
+    splits.zipWithIndex
+      .foldLeft(
+        Right(()): Either[String, Unit]
+      ) { case (result, ((analysis, assessment), unit)) =>
+        result.flatMap { _ =>
+          validatePartition(
+            benchmarkCase.n,
+            analysis,
+            assessment
+          ).toLeft(()).left.map(error => s"unit $unit: $error").flatMap { _ =>
+            if assessment.length == expectedAssessment then Right(())
+            else
+              Left(
+                s"unit $unit assessment size ${assessment.length}, " +
+                  s"expected $expectedAssessment"
+              )
+          }
         }
       }
-    }.map(_ => ContractEvidence(0L, 0L))
+      .map(_ => ContractEvidence(0L, 0L))
 
   private def validateBootstrap(
       benchmarkCase: BenchmarkCase,
@@ -710,14 +719,17 @@ private object ContractValidator:
       unit += 1
     failure match
       case Some(value) => Left(value)
-      case None        => Right(ContractEvidence(0L, 0L))
+      case None => Right(ContractEvidence(0L, 0L))
 
   private def maximumFoldImbalance(
       foldSizes: Array[Array[Int]]
   ): Long =
-    foldSizes.iterator.map { values =>
-      values.max.toLong - values.min.toLong
-    }.maxOption.getOrElse(0L)
+    foldSizes.iterator
+      .map { values =>
+        values.max.toLong - values.min.toLong
+      }
+      .maxOption
+      .getOrElse(0L)
 
   private def maximumStratumDeviation(
       counts: Array[Array[Array[Int]]],
@@ -846,10 +858,9 @@ object BenchmarkMain:
         }
       }
       _ <- write(cli.output, CsvOutput.Header +: rows)
-    yield
-      s"wrote ${rows.size} Resample4s measurements for " +
-        s"${selected.size} ${cli.profile} cases to ${cli.output} " +
-        s"(consumer=${blackhole & 0xffffL})"
+    yield s"wrote ${rows.size} Resample4s measurements for " +
+      s"${selected.size} ${cli.profile} cases to ${cli.output} " +
+      s"(consumer=${blackhole & 0xffffL})"
 
   private def runCase(
       benchmarkCase: BenchmarkCase,
@@ -915,7 +926,7 @@ object BenchmarkMain:
       measurement += 1
     failure match
       case Some(value) => Left(value)
-      case None        => Right(rows.result())
+      case None => Right(rows.result())
 
   private def parseCli(args: Vector[String]): Either[String, Cli] =
     def value(name: String): Either[String, String] =
@@ -941,15 +952,13 @@ object BenchmarkMain:
       lines: Vector[String]
   ): Either[String, Unit] =
     Try {
-        val parent = path.getParent
-        if parent ne null then
-          val _ = Files.createDirectories(parent.nn)
-        val _ = Files.writeString(
-          path,
-          lines.mkString("", "\n", "\n"),
-          StandardCharsets.UTF_8
-        )
-      }
-      .toEither
-      .left
+      val parent = path.getParent
+      if parent ne null then
+        val _ = Files.createDirectories(parent.nn)
+      val _ = Files.writeString(
+        path,
+        lines.mkString("", "\n", "\n"),
+        StandardCharsets.UTF_8
+      )
+    }.toEither.left
       .map(error => s"cannot write $path: ${error.getMessage}")

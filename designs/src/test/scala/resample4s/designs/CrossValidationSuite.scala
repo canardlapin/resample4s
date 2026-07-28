@@ -10,7 +10,7 @@ final class CrossValidationSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def assignment(
       plan: Plan[Split[Selection], ? <: Coverage],
@@ -61,12 +61,12 @@ final class CrossValidationSuite extends munit.FunSuite:
     assertExact(first.plan, n)
     assertEquals(first.plan.shape, right(PlanShape.of(3, 4)))
     assertEquals(
-      first.plan.materialize.map((key, _) =>
-        assignment(first.plan, key.repeat, n)
-      ).distinct,
-      second.plan.materialize.map((key, _) =>
-        assignment(second.plan, key.repeat, n)
-      ).distinct
+      first.plan.materialize
+        .map((key, _) => assignment(first.plan, key.repeat, n))
+        .distinct,
+      second.plan.materialize
+        .map((key, _) => assignment(second.plan, key.repeat, n))
+        .distinct
     )
     var repeat = 0
     while repeat < 3 do
@@ -83,16 +83,14 @@ final class CrossValidationSuite extends munit.FunSuite:
   test("single K-fold is ExactOnce while repeat drops to per-repeat Exact") {
     val space = right(IndexSpace.of(8))
     val seed = Seed.fromLong(4L)
-    val once
-        : Compiled[
-          Split[Selection],
-          Coverage.ExactOnce
-        ] = right(KFold(4).compile(space, seed))
-    val repeated
-        : Compiled[
-          Split[Selection],
-          Coverage.Exact
-        ] = right(right(KFold(4).repeat(2)).compile(space, seed))
+    val once: Compiled[
+      Split[Selection],
+      Coverage.ExactOnce
+    ] = right(KFold(4).compile(space, seed))
+    val repeated: Compiled[
+      Split[Selection],
+      Coverage.Exact
+    ] = right(right(KFold(4).repeat(2)).compile(space, seed))
     assertEquals(once.plan.shape.repeats, 1)
     assertEquals(repeated.plan.shape.repeats, 2)
 
@@ -129,18 +127,20 @@ def illegal(
     var stratum = 0
     while stratum < strata.cardinality do
       val total =
-        Vector.range(0, n).count(index =>
-          strata.at(index).toOption.get == stratum
-        )
+        Vector
+          .range(0, n)
+          .count(index => strata.at(index).toOption.get == stratum)
       val lower = total / 4
       val upper = (total + 3) / 4
       var fold = 0
       while fold < 4 do
         val count =
-          Vector.range(0, n).count(index =>
-            strata.at(index).toOption.get == stratum &&
-              assigned(index) == fold
-          )
+          Vector
+            .range(0, n)
+            .count(index =>
+              strata.at(index).toOption.get == stratum &&
+                assigned(index) == fold
+            )
         assert(count == lower || count == upper)
         fold += 1
       stratum += 1
@@ -341,6 +341,59 @@ def illegal(
     assert(monte.materialize.map(_._2.assessment).distinct.size >= 2)
   }
 
+  test("stratified and grouped shuffle-split keep role and label constraints") {
+    val fraction = right(Fraction.of(1, 2))
+    val space = right(IndexSpace.of(8))
+    val seed = Seed.fromLong(11L)
+    val strata = labels(0, 0, 0, 0, 1, 1, 1, 1)
+    val groups = labels(0, 0, 1, 1, 2, 2, 3, 3)
+    val stratified =
+      right(
+        Holdout.assessingStratified(fraction, strata).compile(space, seed)
+      ).plan
+    val stratifiedSplit = right(stratified.at(UnitKey(0, 0)))
+    assertEquals(stratifiedSplit.assessment.domain, 4)
+    val assessedRows =
+      Vector
+        .tabulate(stratifiedSplit.assessment.domain)(i =>
+          right(stratifiedSplit.assessment.at(i))
+        )
+        .toSet
+    Vector(0, 1).foreach { code =>
+      val stratumRows =
+        Vector.range(0, 8).filter(i => strata.at(i).toOption.get == code)
+      assertEquals(stratumRows.count(assessedRows.contains), 2)
+    }
+
+    val grouped =
+      right(
+        Holdout.assessingGrouped(fraction, groups).compile(space, seed)
+      ).plan
+    val groupedSplit = right(grouped.at(UnitKey(0, 0)))
+    assertEquals(groupedSplit.assessment.domain, 4)
+    val groupedAssessed =
+      Vector
+        .tabulate(groupedSplit.assessment.domain)(i =>
+          right(groupedSplit.assessment.at(i))
+        )
+        .toSet
+    var group = 0
+    while group < groups.cardinality do
+      val members =
+        Vector.range(0, 8).filter(i => groups.at(i).toOption.get == group)
+      val assessed = members.count(groupedAssessed.contains)
+      assert(assessed == 0 || assessed == members.size)
+      group += 1
+
+    val stratifiedMonte =
+      right(
+        MonteCarlo
+          .assessingStratified(fraction, 3, strata)
+          .compile(space, seed)
+      ).plan
+    assertEquals(stratifiedMonte.shape, right(PlanShape.of(3, 1)))
+  }
+
   test("shuffle split shortcut matches complete Fisher-Yates semantics") {
     def vector(values: IArray[Int]): Vector[Int] =
       Vector.tabulate(values.length)(values(_))
@@ -357,9 +410,7 @@ def illegal(
             Vector.tabulate(namedSize)(full(_)).sorted
           val expectedOther =
             Vector
-              .tabulate(n - namedSize)(index =>
-                full(namedSize + index)
-              )
+              .tabulate(n - namedSize)(index => full(namedSize + index))
               .sorted
           val (named, other) =
             ShuffleSplitSupport.sampledRoles(n, namedSize, seed)
@@ -499,9 +550,9 @@ def illegal(
       .filter(values => values.distinct.size == folds)
       .map { allocation =>
         val assigned =
-          Vector.range(0, groups.size).map(index =>
-            allocation(groups.at(index).toOption.get)
-          )
+          Vector
+            .range(0, groups.size)
+            .map(index => allocation(groups.at(index).toOption.get))
         val loads =
           Vector.range(0, folds).map(fold => assigned.count(_ == fold))
         loads.max - loads.min
@@ -517,9 +568,9 @@ def illegal(
       .filter(values => values.distinct.size == folds)
       .map { allocation =>
         val assigned =
-          Vector.range(0, groups.size).map(index =>
-            allocation(groups.at(index).toOption.get)
-          )
+          Vector
+            .range(0, groups.size)
+            .map(index => allocation(groups.at(index).toOption.get))
         objective(assigned, folds, strata)
       }
       .min
@@ -549,14 +600,16 @@ def illegal(
       var stratum = 0
       while stratum < strata.cardinality do
         val total =
-          Vector.range(0, n).count(index =>
-            strata.at(index).toOption.get == stratum
-          )
+          Vector
+            .range(0, n)
+            .count(index => strata.at(index).toOption.get == stratum)
         val count =
-          Vector.range(0, n).count(index =>
-            assigned(index) == fold &&
-              strata.at(index).toOption.get == stratum
-          )
+          Vector
+            .range(0, n)
+            .count(index =>
+              assigned(index) == fold &&
+                strata.at(index).toOption.get == stratum
+            )
         result += BigInt(folds * count - total).pow(2)
         stratum += 1
       val foldSize = assigned.count(_ == fold)

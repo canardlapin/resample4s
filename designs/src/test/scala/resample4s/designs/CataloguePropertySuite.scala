@@ -8,7 +8,7 @@ final class CataloguePropertySuite extends munit.ScalaCheckSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def labels(
       codes: IArray[Int],
@@ -45,10 +45,9 @@ final class CataloguePropertySuite extends munit.ScalaCheckSuite:
       var fold = 0
       while fold < plan.shape.foldsPerRepeat && valid do
         val split = right(plan.at(UnitKey(repeat, fold)))
-        valid =
-          right(
-            split.analysis.support.intersection(split.assessment)
-          ).domain == 0
+        valid = right(
+          split.analysis.support.intersection(split.assessment)
+        ).domain == 0
         fold += 1
       repeat += 1
     valid
@@ -129,18 +128,18 @@ final class CataloguePropertySuite extends munit.ScalaCheckSuite:
       var stratum = 0
       while stratum < strata.cardinality do
         val total =
-          Vector.range(0, n).count(index =>
-            right(strata.at(index)) == stratum
-          )
+          Vector.range(0, n).count(index => right(strata.at(index)) == stratum)
         val lower = total / folds
         val upper = (total + folds - 1) / folds
         var fold = 0
         while fold < folds do
           val count =
-            Vector.range(0, n).count(index =>
-              right(strata.at(index)) == stratum &&
-                assigned(index) == fold
-            )
+            Vector
+              .range(0, n)
+              .count(index =>
+                right(strata.at(index)) == stratum &&
+                  assigned(index) == fold
+              )
           assert(count == lower || count == upper)
           fold += 1
         stratum += 1

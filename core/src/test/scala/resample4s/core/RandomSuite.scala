@@ -4,7 +4,7 @@ final class RandomSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def vector(values: IArray[Int]): Vector[Int] =
     Vector.tabulate(values.length)(values(_))
@@ -21,11 +21,8 @@ final class RandomSuite extends munit.FunSuite:
     assertEquals(
       observed.result(),
       Vector(
-        -2152535657050944081L,
-        7960286522194355700L,
-        487617019471545679L,
-        -537132696929009172L,
-        1961750202426094747L
+        -2152535657050944081L, 7960286522194355700L, 487617019471545679L,
+        -537132696929009172L, 1961750202426094747L
       )
     )
   }
@@ -63,8 +60,7 @@ final class RandomSuite extends munit.FunSuite:
         val (next, word) = current.nextLong
         current = next
         val unsigned = Rand.unsigned(word)
-        if unsigned >= threshold then
-          result = Some((unsigned % bigBound).toInt)
+        if unsigned >= threshold then result = Some((unsigned % bigBound).toInt)
       (current, result.getOrElse(fail("oracle must accept a draw")))
 
     val bounds =

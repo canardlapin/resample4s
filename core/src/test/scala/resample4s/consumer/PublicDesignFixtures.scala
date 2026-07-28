@@ -16,8 +16,7 @@ final class PublicGeneralDesign private (
         PlanDiagnostics.empty,
         cost
       )(
-        key =>
-          context.seed.value.toInt + offset + key.fold,
+        key => context.seed.value.toInt + offset + key.fold,
         new CanonicalAssignmentEncoder[Int]:
           def encode(
               value: Int,
@@ -42,8 +41,7 @@ final class PublicExactDesign private (
     descriptor: DesignDescriptor
 ) extends Design[Split[Selection], Coverage.Exact]:
 
-  val definition
-      : DesignDefinition[Split[Selection], Coverage.Exact] =
+  val definition: DesignDefinition[Split[Selection], Coverage.Exact] =
     DesignDefinition.exactPartitions(descriptor, designLabels) { context =>
       val n = context.space.size
       if n < 2 then Left(DesignError.InvalidFoldCount(2, n))

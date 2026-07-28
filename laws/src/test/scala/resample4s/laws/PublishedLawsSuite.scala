@@ -11,7 +11,7 @@ final class PublishedLawsSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def labels(values: Int*): Labels =
     right(Labels.dense(ints(values*)))
@@ -334,18 +334,18 @@ final class PublishedLawsSuite extends munit.FunSuite:
               shape <- PlanShape.of(1, 1)
               cost <- PlanCost.of(1, 1, 1)
             yield GeneralPlanSpec(
-                shape,
-                PlanDiagnostics.empty,
-                cost
-              )(
-                _ => 1,
-                new CanonicalAssignmentEncoder[Int]:
-                  def encode(
-                      value: Int,
-                      out: CanonicalWriter
-                  ): Either[DigestError, Unit] =
-                    Left(DigestError.ProviderFailure("broken encoder"))
-              )
+              shape,
+              PlanDiagnostics.empty,
+              cost
+            )(
+              _ => 1,
+              new CanonicalAssignmentEncoder[Int]:
+                def encode(
+                    value: Int,
+                    out: CanonicalWriter
+                ): Either[DigestError, Unit] =
+                  Left(DigestError.ProviderFailure("broken encoder"))
+            )
           }
     val result =
       Test.check(

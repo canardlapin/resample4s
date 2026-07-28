@@ -5,26 +5,93 @@ opaque type Seed = Long
 object Seed:
   def fromLong(value: Long): Seed = value
 
-  extension (seed: Seed)
-    def value: Long = seed
+  extension (seed: Seed) def value: Long = seed
 
 opaque type DesignKey = Long
 
 object DesignKey:
   private[resample4s] def fromLong(value: Long): DesignKey = value
 
-  extension (key: DesignKey)
-    def value: Long = key
+  extension (key: DesignKey) def value: Long = key
 
-enum StreamDomain(val tag: Int):
-  case Repeat extends StreamDomain(1)
-  case Unit extends StreamDomain(2)
-  case Stratum extends StreamDomain(3)
-  case GroupSizeBucket extends StreamDomain(4)
-  case FoldPriority extends StreamDomain(5)
-  case ExchangeabilityBlock extends StreamDomain(6)
-  case RedrawAttempt extends StreamDomain(7)
-  case OuterUnit extends StreamDomain(8)
+/**
+ * Domain-separated RNG stream tag.
+ *
+ * Built-in tags keep stable integers 1–8 for seed compatibility. External
+ * authors mint custom tags with [[StreamDomain.custom]] using values `>= 100`.
+ */
+final class StreamDomain private (val tag: Int) derives CanEqual:
+  override def equals(other: Any): Boolean =
+    other match
+      case that: StreamDomain => tag == that.tag
+      case _ => false
+  override def hashCode(): Int = tag
+
+object StreamDomain:
+  val Repeat: StreamDomain = new StreamDomain(1)
+  val Unit: StreamDomain = new StreamDomain(2)
+  val Stratum: StreamDomain = new StreamDomain(3)
+  val GroupSizeBucket: StreamDomain = new StreamDomain(4)
+  val FoldPriority: StreamDomain = new StreamDomain(5)
+  val ExchangeabilityBlock: StreamDomain = new StreamDomain(6)
+  val RedrawAttempt: StreamDomain = new StreamDomain(7)
+  val OuterUnit: StreamDomain = new StreamDomain(8)
+
+  private val CustomTagFloor = 100
+
+  def custom(tag: Int): Either[DesignError, StreamDomain] =
+    if tag < CustomTagFloor then Left(DesignError.InvalidStreamTag(tag))
+    else Right(new StreamDomain(tag))
+
+  /** Stable string tags for ordinary authors; built-ins map to reserved ints. */
+  opaque type StreamTag = String
+
+  object StreamTag:
+    def fromString(value: String): Either[DesignError, StreamTag] =
+      if value.isEmpty || value.exists(ch =>
+          !(ch.isLetterOrDigit || ch == '-' || ch == '_')
+        )
+      then Left(DesignError.InvalidIdentifier("stream-tag", value))
+      else Right(value)
+
+    private[resample4s] def unsafe(value: String): StreamTag = value
+
+    extension (tag: StreamTag) def value: String = tag
+
+  object StreamTags:
+    val repeat: StreamTag = StreamTag.unsafe("repeat")
+    val unit: StreamTag = StreamTag.unsafe("unit")
+    val stratum: StreamTag = StreamTag.unsafe("stratum")
+    val groupSizeBucket: StreamTag = StreamTag.unsafe("group-size-bucket")
+    val foldPriority: StreamTag = StreamTag.unsafe("fold-priority")
+    val exchangeabilityBlock: StreamTag =
+      StreamTag.unsafe("exchangeability-block")
+    val redrawAttempt: StreamTag = StreamTag.unsafe("redraw-attempt")
+    val outerUnit: StreamTag = StreamTag.unsafe("outer-unit")
+
+  def fromTag(tag: StreamTag): Either[DesignError, StreamDomain] =
+    if tag == StreamTags.repeat then Right(Repeat)
+    else if tag == StreamTags.unit then Right(Unit)
+    else if tag == StreamTags.stratum then Right(Stratum)
+    else if tag == StreamTags.groupSizeBucket then Right(GroupSizeBucket)
+    else if tag == StreamTags.foldPriority then Right(FoldPriority)
+    else if tag == StreamTags.exchangeabilityBlock then
+      Right(ExchangeabilityBlock)
+    else if tag == StreamTags.redrawAttempt then Right(RedrawAttempt)
+    else if tag == StreamTags.outerUnit then Right(OuterUnit)
+    else
+      var hash = 2166136261L
+      var index = 0
+      val text: String = tag
+      while index < text.length do
+        hash ^= text.charAt(index).toLong
+        hash *= 16777619L
+        index += 1
+      val mapped =
+        CustomTagFloor + java.lang.Long
+          .remainderUnsigned(hash, (Int.MaxValue - CustomTagFloor).toLong)
+          .toInt
+      custom(mapped)
 
 final case class StreamSegment private[resample4s] (
     domain: StreamDomain,
@@ -58,7 +125,7 @@ final class StreamPath private (
   override def equals(other: Any): Boolean =
     other match
       case that: StreamPath => segments == that.segments
-      case _                => false
+      case _ => false
 
   override def hashCode(): Int = segments.hashCode()
 
@@ -78,11 +145,12 @@ object StreamPath:
 
   given CanEqual[StreamPath, StreamPath] = CanEqual.derived
 
-/** Pure, platform-stable SplitMix64 state.
-  *
-  * Bounded draws use unsigned rejection sampling. No floating-point arithmetic
-  * participates in generation.
-  */
+/**
+ * Pure, platform-stable SplitMix64 state.
+ *
+ * Bounded draws use unsigned rejection sampling. No floating-point arithmetic
+ * participates in generation.
+ */
 final class Rand private (private val state: Long):
   def nextLong: (Rand, Long) =
     val nextState = state + Rand.Gamma
@@ -98,8 +166,7 @@ final class Rand private (private val state: Long):
   def nextBigIntBounded(
       upperExclusive: BigInt
   ): Either[DesignError, (Rand, BigInt)] =
-    if upperExclusive <= 0 then
-      Left(DesignError.InvalidBound(upperExclusive))
+    if upperExclusive <= 0 then Left(DesignError.InvalidBound(upperExclusive))
     else Right(nextBigIntBoundedUnsafe(upperExclusive))
 
   def shuffle(
@@ -125,11 +192,12 @@ final class Rand private (private val state: Long):
         index += 1
       Right(shuffle(IArray.unsafeFromArray(values)))
 
-  /** Initializes an owned identity array and fixes its prefix membership.
-    *
-    * The caller must provide `0 <= prefixSize <= size`. The returned array is
-    * newly allocated and may be transferred to an immutable owner.
-    */
+  /**
+   * Initializes an owned identity array and fixes its prefix membership.
+   *
+   * The caller must provide `0 <= prefixSize <= size`. The returned array is
+   * newly allocated and may be transferred to an immutable owner.
+   */
   private[resample4s] def shufflePrefixIndicesUnsafe(
       size: Int,
       prefixSize: Int
@@ -142,13 +210,14 @@ final class Rand private (private val state: Long):
     shuffleOwnedPrefix(values, stopAt = prefixSize)
     IArray.unsafeFromArray(values)
 
-  /** Mutates an owned identity/value array with the Fisher-Yates steps needed
-    * to fix the set in `[0, stopAt)`.
-    *
-    * Keeping the SplitMix state in a primitive local avoids one `Rand` and two
-    * boxed tuple values per swap. The returned state is exactly the state that
-    * repeated `nextIntBoundedUnsafe` calls would produce.
-    */
+  /**
+   * Mutates an owned identity/value array with the Fisher-Yates steps needed
+   * to fix the set in `[0, stopAt)`.
+   *
+   * Keeping the SplitMix state in a primitive local avoids one `Rand` and two
+   * boxed tuple values per swap. The returned state is exactly the state that
+   * repeated `nextIntBoundedUnsafe` calls would produce.
+   */
   private def shuffleOwnedPrefix(
       values: Array[Int],
       stopAt: Int
@@ -166,8 +235,7 @@ final class Rand private (private val state: Long):
         currentState += Rand.Gamma
         val word = Rand.mix64(currentState)
         if java.lang.Long.compareUnsigned(word, threshold) >= 0 then
-          selected =
-            java.lang.Long.remainderUnsigned(word, bound).toInt
+          selected = java.lang.Long.remainderUnsigned(word, bound).toInt
           accepted = true
       val held = values(index)
       values(index) = values(selected)

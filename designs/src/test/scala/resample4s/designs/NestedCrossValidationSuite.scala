@@ -11,7 +11,7 @@ final class NestedCrossValidationSuite extends munit.ScalaCheckSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def labels(values: Int*): Labels =
     right(Labels.dense(ints(values*)))
@@ -35,17 +35,17 @@ final class NestedCrossValidationSuite extends munit.ScalaCheckSuite:
         (left.at(key), rightValue.at(key)) match
           case (Right(first), Right(second)) =>
             sameSplit(first.outer, second.outer) &&
-              first.innerSeed.value == second.innerSeed.value &&
-              first.inner.shape == second.inner.shape &&
-              first.inner.keys.forall(innerKey =>
-                (
-                  first.inner.at(innerKey),
-                  second.inner.at(innerKey)
-                ) match
-                  case (Right(firstInner), Right(secondInner)) =>
-                    sameSplit(firstInner, secondInner)
-                  case _ => false
-              )
+            first.innerSeed.value == second.innerSeed.value &&
+            first.inner.shape == second.inner.shape &&
+            first.inner.keys.forall(innerKey =>
+              (
+                first.inner.at(innerKey),
+                second.inner.at(innerKey)
+              ) match
+                case (Right(firstInner), Right(secondInner)) =>
+                  sameSplit(firstInner, secondInner)
+                case _ => false
+            )
           case _ => false
       }
 
@@ -88,8 +88,7 @@ final class NestedCrossValidationSuite extends munit.ScalaCheckSuite:
 
   test("one call compiles typed outer and embedded inner plans") {
     val space = right(IndexSpace.of(12))
-    val compiled
-        : Compiled[NestedFold, Coverage.ExactOnce] =
+    val compiled: Compiled[NestedFold, Coverage.ExactOnce] =
       right(
         NestedCrossValidation(
           outerFolds = 3,
@@ -106,6 +105,43 @@ final class NestedCrossValidationSuite extends munit.ScalaCheckSuite:
       assertEquals(inner.shape, right(PlanShape.of(1, 2)))
     }
     assertEmbeddedLaws(compiled.plan, space.size)
+  }
+
+  test("general Nested.of embeds plain ExactOnce designs") {
+    val space = right(IndexSpace.of(12))
+    val seed = Seed.fromLong(42L)
+    val plan =
+      right(
+        Nested
+          .of(KFold(3), KFold(2))
+          .compile(space, seed)
+      ).plan
+    assertEquals(plan.shape, right(PlanShape.of(1, 3)))
+    assertEmbeddedLaws(plan, space.size)
+
+    val leaveOne =
+      right(
+        Nested
+          .of(LeaveOneOut(), KFold(2))
+          .compile(right(IndexSpace.of(6)), Seed.fromLong(3L))
+      ).plan
+    assertEquals(leaveOne.shape, right(PlanShape.of(1, 6)))
+    assertEmbeddedLaws(leaveOne, 6)
+  }
+
+  test("public map on nested plan drops ExactOnce while embed keeps it") {
+    val compiled = right(
+      NestedCrossValidation(3, 2)
+        .compile(right(IndexSpace.of(12)), Seed.fromLong(7L))
+    )
+    val inner: Plan[Split[Selection], Coverage.ExactOnce] =
+      compiled.plan.first.inner
+    val forgotten: Plan[NestedFold, Coverage] =
+      compiled.plan.map(identity)
+    assertEquals(forgotten.shape, compiled.plan.shape)
+    // Embedding path retained ExactOnce on the inner plan itself.
+    assertEquals(inner.shape.foldsPerRepeat, 2)
+    assertEquals(inner.materialize.length, 2)
   }
 
   test("nested compilation exactly expands standalone K-fold composition") {

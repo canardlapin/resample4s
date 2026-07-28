@@ -1,86 +1,186 @@
 # Resample4s
 
-Resample4s is a zero-runtime-dependency Scala 3 library for finite reindexings,
-partitions, and reproducible resampling designs. It targets JVM, Scala.js, and
-Scala Native from one pure source tree.
-
-The core idea is small: a dataset has ordinal positions `0` through `n - 1`, and
-a resample is a function from a new finite ordinal into those positions. Resample4s
-keeps the important kinds of that function distinct:
-
-- `Draw` is ordered and may repeat positions.
-- `Injection` is ordered and never repeats.
-- `Selection` is strictly increasing.
-- `Permutation` is a bijection.
-
-Composition preserves the strongest valid result type. In particular,
-`Selection.after(Selection)` is still a `Selection`, which is the algebraic
-reason nested cross-validation cannot reach an outer assessment fold.
+Resample4s builds reproducible train/test index plans for Scala 3. It
+distinguishes sampling with replacement, selection without replacement, and
+permutation in the type system, while keeping ordinary cross-validation
+concise. It targets JVM, Scala.js, and Scala Native from one pure source tree
+with zero external runtime dependencies.
 
 ## Status
 
-This repository is currently `0.1.0-SNAPSHOT`. The fixed-allocation
-implementation and its local cross-platform gates are complete. Hosted JVM,
-Scala.js, Scala Native, and compatibility CI last passed on the preceding
-nested-CV baseline; changed-surface hosted CI and the ScalaFIM consumer
-rehearsal remain open. The implementation follows `PRD.md` v0.13;
-rolling-origin/time-series designs are explicitly deferred.
+This repository is currently `0.1.0-SNAPSHOT`. Freeze-readiness work for the
+kernel, façade, and catalogue is in tree. In-repo gates still open before a
+stable tag:
 
-## Example
+- hosted CI green on the current surface (including façade tests and Scalafmt);
+- an independent review of the changed public surface, with findings resolved.
+
+Sonatype publication and external consumer rehearsals (Alder follow-ups,
+ScalaFIM) are deferred; local `publishLocalAll` is enough for early development.
+Rolling-origin / time-series designs remain deferred (PRD D10). Performance
+benchmarks and allocation-path optimizations stay active work — see
+`docs/performance/` and `benchmarks/`.
+
+## Installation
 
 ```scala
-import resample4s.core.*
-import resample4s.designs.*
-
-val nested =
-  for
-    space <- IndexSpace.of(120)
-    compiled <- NestedCrossValidation(
-      outerFolds = 5,
-      innerFolds = 4,
-    ).compile(space, Seed.fromLong(42L))
-  yield compiled
-
-val firstInnerAssessment =
-  nested.map(_.plan.first.inner.first.assessment)
-
-// The successful value is a Selection over the original 120-row population.
+libraryDependencies +=
+  "io.github.canardlapin" %%% "resample4s" % "0.1.0-SNAPSHOT"
 ```
 
-Use `stratified`, `grouped`, or `groupedStratified` when both levels should use
-the corresponding label-aware K-fold allocator. The standalone source is
-compiled on JVM, Scala.js, and Scala Native:
-[`examples/NestedCrossValidation.scala`](examples/NestedCrossValidation.scala).
+Specialist artifacts remain available as `resample4s-core`,
+`resample4s-designs`, and `resample4s-laws`.
+
+## Sixty-second K-fold
+
+```scala
+import resample4s.*
+
+val result =
+  KFold(
+    folds = 5,
+    shuffle = true
+  ).plan(
+    samples = 120,
+    seed = 42L
+  )
+
+result.foreach { plan =>
+  for split <- plan.splits do
+    val train: Selection = split.train
+    val test: Selection  = split.test
+    // gather rows with train.foreachIndex / test.foreachIndex
+}
+```
+
+Randomization is explicit. Use `KFold.ordered(5)` when fold assignment must
+follow population order without shuffling.
+
+## Stratified and grouped
+
+```scala
+import resample4s.*
+
+val classLabels = Vector(0, 0, 1, 1, 0, 1)
+val subjectIds  = Vector(0, 0, 1, 1, 2, 2)
+
+val stratified =
+  KFold.stratified(folds = 2, strata = classLabels).flatMap(_.plan(seed = 42L))
+
+val grouped =
+  KFold.grouped(folds = 2, groups = subjectIds).flatMap(_.plan(seed = 42L))
+```
+
+Typed wrappers prevent exchanging groups and strata:
+
+```scala
+val groups: Groups = Groups.from(subjectIds).toOption.get
+val strata: Strata = Strata.from(classLabels).toOption.get
+```
+
+## Bootstrap reveals Draw
+
+```scala
+import resample4s.*
+
+val result =
+  Bootstrap
+    .unconditional(resamples = 1000)
+    .plan(samples = 120, seed = 42L)
+
+result.foreach { plan =>
+  for split <- plan.splits do
+    val train: Draw     = split.train  // may repeat rows
+    val test: Selection = split.test   // out-of-bag rows
+}
+```
+
+That is where a scikit-learn user becomes intrigued: the API looks familiar, but
+Scala tells them that bootstrap training rows can repeat.
+
+## Holdout and shuffle split
+
+```scala
+import resample4s.*
+
+val holdout =
+  Holdout(test = SplitSize.percent(20).toOption.get)
+    .plan(samples = 120, seed = 42L)
+
+val repeated =
+  ShuffleSplit(
+    test = SplitSize.count(24),
+    resamples = 100
+  ).plan(samples = 120, seed = 42L)
+
+val stratified =
+  ShuffleSplit
+    .stratified(
+      test = SplitSize.percent(25).toOption.get,
+      resamples = 10,
+      strata = Vector(0, 0, 1, 1, 0, 1, 0, 1)
+    )
+    .flatMap(_.plan(seed = 42L))
+
+// Grouped shuffle-split sizes are in groups, not rows:
+// SplitSize.count(2) holds out two groups; percent(25) holds out ~25% of groups.
+```
+
+## Predefined and nested
+
+```scala
+import resample4s.*
+
+val imported =
+  PredefinedSplit.fromAssignments(Array(0, 0, 1, 1, 2, 2))
+
+val nested =
+  Nested.plan(outerFolds = 5, innerFolds = 3, samples = 120, seed = 42L)
+```
+
+Compatible ExactOnce designs can also be composed with `Nested.of(outer, inner)`
+or `Nested.combine(outer, analysis => …)` when inner labels must be projected.
+
+## What the types buy you
+
+- `Draw` may repeat rows and preserves draw order.
+- `Injection` preserves order but cannot repeat.
+- `Selection` is an ordered set of rows.
+- `Permutation` is a bijection.
+
+Bootstrap, cross-validation, jackknife, and permutation therefore have
+genuinely different static meanings. Coverage capabilities such as
+`Coverage.ExactOnce` (and constructive `CompleteOnce`) let downstream libraries
+require one out-of-fold value per row without a runtime coverage check.
 
 ## Catalogue
 
-The `resample4s-designs` module includes:
+The façade exposes ordinary constructors for:
 
-- nested K-fold with complete embedded inner plans, including stratified,
-  grouped, and grouped-stratified variants;
-- named-role holdout and Monte Carlo splits;
-- plain, stratified, grouped, and grouped-stratified K-fold;
-- leave-one-out and leave-one-group-out;
-- ordinary and whole-group bootstrap with explicit OOB policy;
-- delete-one, exhaustive delete-d, and sampled delete-d jackknife;
-- free and within-block permutation designs;
-- imported arbitrary analysis/assessment allocations through `FixedSplits`;
-- imported exact fold assignments through one-repeat or repeated
-  `FixedPartitions`.
+- plain, ordered, stratified, grouped, and grouped-stratified K-fold;
+- holdout and shuffle split, including stratified and grouped variants;
+- predefined splits from assignments or imported train/test selections;
+- unconditional / redrawing / fail-on-empty-OOB bootstrap;
+- leave-one-out and delete-one jackknife;
+- free and within-block permutation tests;
+- nested cross-validation via `Nested.kFold` / `Nested.plan`, plus the
+  general `Nested.of` / `Nested.combine` combinator.
 
-One-repeat partitioning designs return
-`Plan[Split[Selection], Coverage.ExactOnce]`. Repeating them preserves the
-weaker `Coverage.Exact` proof—once per repeat—but deliberately drops
-`ExactOnce`. Partial designs return `Coverage`, so a consumer cannot pass
-Holdout, Bootstrap, or repeated K-fold to an API that requires one OOF value per
-row.
+Rolling-origin / time-series designs remain deferred past v0.1 (PRD D10).
 
-`FixedSplits` retains caller-supplied `Split[Selection]` units in repeat-major
-order and always returns `Coverage`; it permits partial coverage, overlapping
-assessments across units, and rows omitted from both roles. `FixedPartitions`
-accepts canonical `Labels` assignments. Its one-repeat constructor returns
-`ExactOnce`, while repeated assignments return `Exact`. Raw fold codes are
-canonicalized, and run or display names remain consumer metadata.
+Import rings for specialists:
+
+- `import resample4s.kernel.*` — reindexing algebra and plan capabilities;
+- `import resample4s.spi.*` — design authoring, descriptors, stream tags;
+- `import resample4s.audit.*` — digests and receipts.
+
+Guides:
+
+- [Concepts](docs/concepts.md) — plan vs data, Selection vs Draw, coverage
+- [Integrator guide](docs/integrator.md) — consuming plans and ordinals
+- [Author guide](docs/author.md) — writing auditable designs
+- [Compatibility](docs/compatibility.md) — MiMa plus seed-to-assignment policy
+- [Performance](docs/performance/README.md) — benchmarks and optimization posture
 
 ## Reproducibility and audit
 
@@ -92,24 +192,22 @@ correctness evidence.
 `PlanReceipt` verifies a recompiled plan against design, labels, population, and
 assignment fingerprints. It does not reconstruct a design. The built-in
 FNV-1a-64 provider is only a checksum for accidental divergence. It is not
-collision-resistant, tamper-evident, or authenticated. Consumers may supply an
-arbitrary-length digest provider through a per-invocation incremental
-accumulator; authentication still requires trusted storage or a signature
-outside Resample4s.
+collision-resistant, tamper-evident, or authenticated.
 
 ## Honest limits
 
-- `OobPolicy.Redraw` conditions bootstrap on non-empty OOB and therefore biases
-  the distribution, especially for small populations. Use `Allow` for the
-  unconditional bootstrap distribution.
+- `OobPolicy.Redraw` / façade `Bootstrap.redrawing` conditions bootstrap on
+  non-empty OOB and therefore biases the distribution, especially for small
+  populations. Use unconditional bootstrap for the unbiased distribution.
 - Grouped K-fold guarantees group atomicity, not balanced fold sizes.
 - Grouped-stratified K-fold uses an exact `BigInt` objective and reports its
   result, but balance is best-effort and has no approximation guarantee.
 - Plans are lazy and recompute randomized units on repeated access. Call
-  `materialized` when retaining all generated units is the intended tradeoff.
+  `compiled.plan.materialized` when retaining all generated units is intended.
 
 ## Modules and verification
 
+- `resample4s` — ordinary-user façade (this artifact).
 - `resample4s-core`: algebra, RNG, design SPI, plans, and receipts.
 - `resample4s-designs`: built-in design catalogue.
 - `resample4s-laws`: published ScalaCheck law bundles.
@@ -118,19 +216,6 @@ outside Resample4s.
 
 Run the full local gate with:
 
-```text
+```bash
 sbt testAll
-sbt compatibilityAll
-sbt publishLocalAll
-sbt benchmarkCheck
 ```
-
-The build uses Scala 3.3.8 with fatal warnings, strict equality, explicit nulls,
-and no runtime library dependencies.
-
-The cross-language benchmark compares complete canonical split artifacts rather
-than constructor names. Every timing cell first proves the same fixture and
-semantic contract. The checked-in standard run and its limits are recorded in
-[`benchmarks/results/2026-07-26-standard/report.md`](benchmarks/results/2026-07-26-standard/report.md);
-the reproducible protocol is in
-[`benchmarks/README.md`](benchmarks/README.md).

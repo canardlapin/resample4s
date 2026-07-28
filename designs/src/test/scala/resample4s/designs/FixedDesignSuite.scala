@@ -11,7 +11,7 @@ final class FixedDesignSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def labels(values: Int*): Labels =
     right(Labels.dense(ints(values*)))
@@ -132,10 +132,12 @@ final class FixedDesignSuite extends munit.FunSuite:
       )
     )
     assertEquals(
-      FixedSplits.once(first).compile(
-        five,
-        Seed.fromLong(0L)
-      ),
+      FixedSplits
+        .once(first)
+        .compile(
+          five,
+          Seed.fromLong(0L)
+        ),
       Left(DesignError.LengthMismatch(5, 6))
     )
   }
@@ -185,20 +187,18 @@ final class FixedDesignSuite extends munit.FunSuite:
     val space = right(IndexSpace.of(6))
     val first = labels(10, 10, 20, 20, 30, 30)
     val second = labels(10, 20, 10, 20, 30, 30)
-    val once
-        : Compiled[
-          Split[Selection],
-          Coverage.ExactOnce
-        ] =
+    val once: Compiled[
+      Split[Selection],
+      Coverage.ExactOnce
+    ] =
       right(
         right(FixedPartitions.once(first))
           .compile(space, Seed.fromLong(2L))
       )
-    val repeated
-        : Compiled[
-          Split[Selection],
-          Coverage.Exact
-        ] =
+    val repeated: Compiled[
+      Split[Selection],
+      Coverage.Exact
+    ] =
       right(
         right(
           FixedPartitions.repeated(
@@ -220,6 +220,20 @@ final class FixedDesignSuite extends munit.FunSuite:
       }
     }
 
+    val constructive = right(FixedPartitions.completeOnce(first))
+    assertEquals(constructive.folds, 3)
+    assertEquals(constructive.populationSize, 6)
+    assertEquals(right(constructive.assessmentFold(0)), 0)
+    assertEquals(right(constructive.assessmentFold(2)), 1)
+    assert(Plan.sameUnits(constructive.plan, once.plan))
+
+    val predefined =
+      PredefinedSplit.once(split(space, Seq(0, 1, 2), Seq(3, 4, 5)))
+    val fromAlias = right(
+      predefined.compile(space, Seed.fromLong(9L))
+    )
+    assertEquals(fromAlias.plan.shape.unitCount, 1)
+
     val errors = typeCheckErrors(
       """import resample4s.core.*
 import resample4s.designs.*
@@ -234,7 +248,9 @@ needsOnce(repeated)
     )
     assertEquals(errors.length, 2)
     assert(
-      errors.map(_.message).mkString("\n")
+      errors
+        .map(_.message)
+        .mkString("\n")
         .contains("Coverage.ExactOnce")
     )
   }

@@ -10,7 +10,7 @@ final class PermutationDesign private[designs] (
     DesignSupport.descriptor(
       blocks match
         case Some(_) => "permutation-within/v1"
-        case None    => "permutation/v1",
+        case None => "permutation/v1",
       "times" -> DescriptorValue.int(times)
     )
 

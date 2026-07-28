@@ -12,7 +12,7 @@ final class DesignProtocolSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def summary(value: Long): Summary =
     right(Summary.of("resample4s/size", value))
@@ -35,8 +35,7 @@ final class DesignProtocolSuite extends munit.FunSuite:
               while index < chunk.length do
                 val value = (chunk(index).toInt & 0xff).toLong
                 first = Rand.mix64(first ^ value)
-                second =
-                  Rand.mix64(second + value + 0x9e3779b97f4a7c15L)
+                second = Rand.mix64(second + value + 0x9e3779b97f4a7c15L)
                 index += 1
               Right(())
 
@@ -45,8 +44,7 @@ final class DesignProtocolSuite extends munit.FunSuite:
               var index = 0
               while index < 8 do
                 result(index) = (first >>> (56 - 8 * index)).toByte
-                result(index + 8) =
-                  (second >>> (56 - 8 * index)).toByte
+                result(index + 8) = (second >>> (56 - 8 * index)).toByte
                 index += 1
               DigestValue.fromBytes(IArray.unsafeFromArray(result))
         )
@@ -188,11 +186,10 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
       }
     val design =
       new Design[Split[Selection], Coverage.ExactOnce]:
-        val definition
-            : DesignDefinition[
-              Split[Selection],
-              Coverage.ExactOnce
-            ] = exactDefinition
+        val definition: DesignDefinition[
+          Split[Selection],
+          Coverage.ExactOnce
+        ] = exactDefinition
     assertEquals(
       design.compile(right(IndexSpace.of(4)), Seed.fromLong(1L)),
       Left(DesignError.ExpectedSingleRepeat(2))
@@ -305,8 +302,7 @@ val forged: DesignDefinition[Int, Coverage.Exact] =
 
         def newAccumulator(): Either[DigestError, DigestAccumulator] =
           sessions += 1
-          if sessions == 1 then
-            DigestAlgorithm.fnv1a64.newAccumulator()
+          if sessions == 1 then DigestAlgorithm.fnv1a64.newAccumulator()
           else
             Right(
               new DigestAccumulator:

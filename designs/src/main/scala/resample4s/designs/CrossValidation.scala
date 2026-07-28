@@ -10,37 +10,44 @@ trait RepeatableDesign[+A, +Cov <: Coverage.Exact] extends Design[A, Cov]:
 final class PlainKFold[Cov <: Coverage.Exact] private[designs] (
     val folds: Int,
     val repeats: Int,
+    val shuffle: Boolean,
     route: ExactDefinitionRoute[Cov]
 ) extends RepeatableDesign[Split[Selection], Cov]:
   private val descriptor =
-    DesignSupport.descriptor(
-      "kfold/v1",
-      "folds" -> DescriptorValue.int(folds),
-      "repeats" -> DescriptorValue.int(repeats)
-    )
+    if shuffle then
+      DesignSupport.descriptor(
+        "kfold/v1",
+        "folds" -> DescriptorValue.int(folds),
+        "repeats" -> DescriptorValue.int(repeats)
+      )
+    else
+      DesignSupport.descriptor(
+        "kfold-ordered/v1",
+        "folds" -> DescriptorValue.int(folds),
+        "repeats" -> DescriptorValue.int(repeats),
+        "shuffle" -> DescriptorValue.bool(false)
+      )
 
-  val definition
-      : DesignDefinition[Split[Selection], Cov] =
+  val definition: DesignDefinition[Split[Selection], Cov] =
     route.oneLabel(descriptor, None) { context =>
       DesignSupport.exactSpec(
         context,
         folds,
         repeats,
-        repeat =>
-          DesignSupport.plainPartition(context, folds, repeat)
+        repeat => DesignSupport.plainPartition(context, folds, repeat, shuffle)
       )
     }
 
   def repeat(
       repeatCount: Int
   ): Either[DesignError, PlainKFold[Coverage.Exact]] =
-    if repeatCount < 1 then
-      Left(DesignError.InvalidRepeatCount(repeatCount))
+    if repeatCount < 1 then Left(DesignError.InvalidRepeatCount(repeatCount))
     else
       Right(
         new PlainKFold(
           folds,
           repeatCount,
+          shuffle,
           ExactDefinitionRoute.repeated
         )
       )
@@ -58,8 +65,7 @@ final class StratifiedKFold[Cov <: Coverage.Exact] private[designs] (
       "repeats" -> DescriptorValue.int(repeats)
     )
 
-  val definition
-      : DesignDefinition[Split[Selection], Cov] =
+  val definition: DesignDefinition[Split[Selection], Cov] =
     route.oneLabel(descriptor, Some(strata)) { context =>
       DesignSupport.exactSpec(
         context,
@@ -78,8 +84,7 @@ final class StratifiedKFold[Cov <: Coverage.Exact] private[designs] (
   def repeat(
       repeatCount: Int
   ): Either[DesignError, StratifiedKFold[Coverage.Exact]] =
-    if repeatCount < 1 then
-      Left(DesignError.InvalidRepeatCount(repeatCount))
+    if repeatCount < 1 then Left(DesignError.InvalidRepeatCount(repeatCount))
     else
       Right(
         new StratifiedKFold(
@@ -90,11 +95,12 @@ final class StratifiedKFold[Cov <: Coverage.Exact] private[designs] (
         )
       )
 
-/** Group-atomic LPT K-fold.
-  *
-  * Group atomicity is absolute; fold-size balance is best-effort and reported
-  * through `PlanDiagnostics`.
-  */
+/**
+ * Group-atomic LPT K-fold.
+ *
+ * Group atomicity is absolute; fold-size balance is best-effort and reported
+ * through `PlanDiagnostics`.
+ */
 final class GroupedKFold[Cov <: Coverage.Exact] private[designs] (
     val folds: Int,
     val groups: Labels,
@@ -108,8 +114,7 @@ final class GroupedKFold[Cov <: Coverage.Exact] private[designs] (
       "repeats" -> DescriptorValue.int(repeats)
     )
 
-  val definition
-      : DesignDefinition[Split[Selection], Cov] =
+  val definition: DesignDefinition[Split[Selection], Cov] =
     route.oneLabel(descriptor, Some(groups)) { context =>
       DesignSupport.exactSpec(
         context,
@@ -122,16 +127,14 @@ final class GroupedKFold[Cov <: Coverage.Exact] private[designs] (
             groups,
             repeat
           ),
-        observed =>
-          DesignSupport.groupedDiagnostics(groups, folds, observed)
+        observed => DesignSupport.groupedDiagnostics(groups, folds, observed)
       )
     }
 
   def repeat(
       repeatCount: Int
   ): Either[DesignError, GroupedKFold[Coverage.Exact]] =
-    if repeatCount < 1 then
-      Left(DesignError.InvalidRepeatCount(repeatCount))
+    if repeatCount < 1 then Left(DesignError.InvalidRepeatCount(repeatCount))
     else
       Right(
         new GroupedKFold(
@@ -142,11 +145,12 @@ final class GroupedKFold[Cov <: Coverage.Exact] private[designs] (
         )
       )
 
-/** Group-atomic K-fold minimizing the exact incremental `BigInt` objective.
-  *
-  * Stratum and size balance are best-effort; no approximation guarantee is
-  * claimed. Diagnostics expose the achieved objective and deviations.
-  */
+/**
+ * Group-atomic K-fold minimizing the exact incremental `BigInt` objective.
+ *
+ * Stratum and size balance are best-effort; no approximation guarantee is
+ * claimed. Diagnostics expose the achieved objective and deviations.
+ */
 final class GroupedStratifiedKFold[
     Cov <: Coverage.Exact
 ] private[designs] (
@@ -163,8 +167,7 @@ final class GroupedStratifiedKFold[
       "repeats" -> DescriptorValue.int(repeats)
     )
 
-  val definition
-      : DesignDefinition[Split[Selection], Cov] =
+  val definition: DesignDefinition[Split[Selection], Cov] =
     route.manyLabels(
       descriptor,
       IArray.unsafeFromArray(Array(groups, strata))
@@ -213,8 +216,7 @@ final class GroupedStratifiedKFold[
   def repeat(
       repeatCount: Int
   ): Either[DesignError, GroupedStratifiedKFold[Coverage.Exact]] =
-    if repeatCount < 1 then
-      Left(DesignError.InvalidRepeatCount(repeatCount))
+    if repeatCount < 1 then Left(DesignError.InvalidRepeatCount(repeatCount))
     else
       Right(
         new GroupedStratifiedKFold(
@@ -228,7 +230,13 @@ final class GroupedStratifiedKFold[
 
 object KFold:
   def apply(folds: Int): PlainKFold[Coverage.ExactOnce] =
-    new PlainKFold(folds, 1, ExactDefinitionRoute.once)
+    shuffled(folds)
+
+  def shuffled(folds: Int): PlainKFold[Coverage.ExactOnce] =
+    new PlainKFold(folds, 1, shuffle = true, ExactDefinitionRoute.once)
+
+  def ordered(folds: Int): PlainKFold[Coverage.ExactOnce] =
+    new PlainKFold(folds, 1, shuffle = false, ExactDefinitionRoute.once)
 
   def stratified(
       folds: Int,
@@ -261,11 +269,12 @@ enum NamedRole derives CanEqual:
 
 final class Holdout private[designs] (
     val fraction: Fraction,
-    val role: NamedRole
+    val role: NamedRole,
+    private val variant: ShuffleVariant
 ) extends Design[Split[Selection], Coverage]:
   private val descriptor =
     DesignSupport.descriptor(
-      "holdout/v1",
+      variant.holdoutAlgorithm,
       "fraction" -> DescriptorValue.fraction(fraction),
       "role" -> DescriptorValue.variantUnchecked(
         role match
@@ -276,30 +285,63 @@ final class Holdout private[designs] (
     )
 
   val definition: DesignDefinition[Split[Selection], Coverage] =
-    DesignDefinition.general(descriptor) { context =>
+    DesignDefinition.general(
+      descriptor,
+      IArray.unsafeFromArray(variant.labels.toArray)
+    ) { context =>
       ShuffleSplitSupport.spec(
         context,
         fraction,
         role,
-        times = 1
+        times = 1,
+        variant
       )
     }
 
 object Holdout:
   def assessing(fraction: Fraction): Holdout =
-    new Holdout(fraction, NamedRole.Assessing)
+    new Holdout(fraction, NamedRole.Assessing, ShuffleVariant.Plain)
 
   def analyzing(fraction: Fraction): Holdout =
-    new Holdout(fraction, NamedRole.Analyzing)
+    new Holdout(fraction, NamedRole.Analyzing, ShuffleVariant.Plain)
+
+  def assessingStratified(fraction: Fraction, strata: Labels): Holdout =
+    new Holdout(
+      fraction,
+      NamedRole.Assessing,
+      ShuffleVariant.Stratified(strata)
+    )
+
+  def analyzingStratified(fraction: Fraction, strata: Labels): Holdout =
+    new Holdout(
+      fraction,
+      NamedRole.Analyzing,
+      ShuffleVariant.Stratified(strata)
+    )
+
+  def assessingGrouped(fraction: Fraction, groups: Labels): Holdout =
+    new Holdout(
+      fraction,
+      NamedRole.Assessing,
+      ShuffleVariant.Grouped(groups)
+    )
+
+  def analyzingGrouped(fraction: Fraction, groups: Labels): Holdout =
+    new Holdout(
+      fraction,
+      NamedRole.Analyzing,
+      ShuffleVariant.Grouped(groups)
+    )
 
 final class MonteCarlo private[designs] (
     val fraction: Fraction,
     val role: NamedRole,
-    val times: Int
+    val times: Int,
+    private val variant: ShuffleVariant
 ) extends Design[Split[Selection], Coverage]:
   private val descriptor =
     DesignSupport.descriptor(
-      "monte-carlo/v1",
+      variant.monteCarloAlgorithm,
       "fraction" -> DescriptorValue.fraction(fraction),
       "role" -> DescriptorValue.variantUnchecked(
         role match
@@ -311,118 +353,72 @@ final class MonteCarlo private[designs] (
     )
 
   val definition: DesignDefinition[Split[Selection], Coverage] =
-    DesignDefinition.general(descriptor) { context =>
+    DesignDefinition.general(
+      descriptor,
+      IArray.unsafeFromArray(variant.labels.toArray)
+    ) { context =>
       ShuffleSplitSupport.spec(
         context,
         fraction,
         role,
-        times
+        times,
+        variant
       )
     }
 
 object MonteCarlo:
   def assessing(fraction: Fraction, times: Int): MonteCarlo =
-    new MonteCarlo(fraction, NamedRole.Assessing, times)
+    new MonteCarlo(fraction, NamedRole.Assessing, times, ShuffleVariant.Plain)
 
   def analyzing(fraction: Fraction, times: Int): MonteCarlo =
-    new MonteCarlo(fraction, NamedRole.Analyzing, times)
+    new MonteCarlo(fraction, NamedRole.Analyzing, times, ShuffleVariant.Plain)
 
-private[designs] object ShuffleSplitSupport:
-  def spec(
-      context: BuildContext,
+  def assessingStratified(
       fraction: Fraction,
-      role: NamedRole,
-      times: Int
-  ): Either[DesignError, GeneralPlanSpec[Split[Selection]]] =
-    val n = context.space.size
-    val namedSize = fraction.sizeOf(n)
-    val assessmentSize =
-      role match
-        case NamedRole.Assessing => namedSize
-        case NamedRole.Analyzing => n - namedSize
-    if times < 1 then Left(DesignError.InvalidTimes(times))
-    else if namedSize <= 0 || namedSize >= n then
-      Left(DesignError.DegenerateSplit(n, assessmentSize))
-    else
-      for
-        shape <- PlanShape.of(times, 1)
-        cost <- PlanCost.of(times.toLong, n.toLong, n.toLong)
-      yield
-        val seeds =
-          Array.tabulate(times)(repeat =>
-            context.derive(
-              DesignSupport.childPath(
-                repeat,
-                StreamDomain.Unit,
-                repeat
-              )
-            )
-          )
-        GeneralPlanSpec(
-          shape,
-          PlanDiagnostics.empty,
-          cost
-        )(
-          key => split(n, namedSize, role, seeds(key.repeat)),
-          CanonicalAssignmentEncoder.selectionSplit
-        )
+      times: Int,
+      strata: Labels
+  ): MonteCarlo =
+    new MonteCarlo(
+      fraction,
+      NamedRole.Assessing,
+      times,
+      ShuffleVariant.Stratified(strata)
+    )
 
-  private def split(
-      n: Int,
-      namedSize: Int,
-      role: NamedRole,
-      seed: Seed
-  ): Split[Selection] =
-    val (named, other) = sampledRoles(n, namedSize, seed)
-    val namedSelection =
-      Selection.fromOwned(named, n)
-    val otherSelection =
-      Selection.fromOwned(other, n)
-    role match
-      case NamedRole.Assessing =>
-        Split.unsafe(otherSelection, namedSelection)
-      case NamedRole.Analyzing =>
-        Split.unsafe(namedSelection, otherSelection)
+  def analyzingStratified(
+      fraction: Fraction,
+      times: Int,
+      strata: Labels
+  ): MonteCarlo =
+    new MonteCarlo(
+      fraction,
+      NamedRole.Analyzing,
+      times,
+      ShuffleVariant.Stratified(strata)
+    )
 
-  /** Produces the same sorted role selections as a complete Fisher-Yates
-    * shuffle followed by sorting both sides.
-    *
-    * Once the shuffle has processed position `namedSize`, later swaps only
-    * permute the named prefix. Because `Selection` discards that order, a
-    * membership scan can emit both roles directly in canonical order.
-    */
-  private[designs] def sampledRoles(
-      n: Int,
-      namedSize: Int,
-      seed: Seed
-  ): (IArray[Int], IArray[Int]) =
-    val shuffled =
-      Rand
-        .fromSeed(seed)
-        .shufflePrefixIndicesUnsafe(n, namedSize)
+  def assessingGrouped(
+      fraction: Fraction,
+      times: Int,
+      groups: Labels
+  ): MonteCarlo =
+    new MonteCarlo(
+      fraction,
+      NamedRole.Assessing,
+      times,
+      ShuffleVariant.Grouped(groups)
+    )
 
-    val isNamed = new Array[Boolean](n)
-    var index = 0
-    while index < namedSize do
-      isNamed(shuffled(index)) = true
-      index += 1
-
-    val named = new Array[Int](namedSize)
-    val other = new Array[Int](n - namedSize)
-    var namedIndex = 0
-    var otherIndex = 0
-    index = 0
-    while index < n do
-      if isNamed(index) then
-        named(namedIndex) = index
-        namedIndex += 1
-      else
-        other(otherIndex) = index
-        otherIndex += 1
-      index += 1
-    (
-      IArray.unsafeFromArray(named),
-      IArray.unsafeFromArray(other)
+  def analyzingGrouped(
+      fraction: Fraction,
+      times: Int,
+      groups: Labels
+  ): MonteCarlo =
+    new MonteCarlo(
+      fraction,
+      NamedRole.Analyzing,
+      times,
+      ShuffleVariant.Grouped(groups)
     )
 
 final class LeaveOneOut private ()
@@ -430,8 +426,7 @@ final class LeaveOneOut private ()
   private val descriptor =
     DesignSupport.descriptor("leave-one-out/v1")
 
-  val definition
-      : DesignDefinition[Split[Selection], Coverage.ExactOnce] =
+  val definition: DesignDefinition[Split[Selection], Coverage.ExactOnce] =
     DesignDefinition.exactOncePartitions(descriptor) { context =>
       val n = context.space.size
       if n < 2 then Left(DesignError.DegenerateSplit(n, 1))
@@ -455,8 +450,7 @@ final class LeaveOneGroupOut private (
   private val descriptor =
     DesignSupport.descriptor("leave-one-group-out/v1")
 
-  val definition
-      : DesignDefinition[Split[Selection], Coverage.ExactOnce] =
+  val definition: DesignDefinition[Split[Selection], Coverage.ExactOnce] =
     DesignDefinition.exactOncePartitions(descriptor, Some(groups)) { context =>
       if groups.cardinality < 2 then
         Left(DesignError.TooFewGroups(groups.cardinality, 2))

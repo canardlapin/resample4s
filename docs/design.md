@@ -10,7 +10,8 @@ maintainers need when changing code.
    enough payload to reconstruct them.
 2. Exact assessment coverage is a type capability. `Coverage.Exact` means once
    per repeat; `Coverage.ExactOnce` additionally proves one repeat. Only
-   core-derived partition definitions can create either proof.
+   core-derived partition definitions can create either proof. Public
+   `Plan.map` / `zip` drop to ordinary `Coverage`.
 3. Plans are lazy, immutable generators. Eager retention is explicit through
    `materialized`; there is no mutable memoization.
 4. Exhaustive and sampled delete-d are distinct constructors. Exhaustive
@@ -55,9 +56,9 @@ maintainers need when changing code.
 
 ## Implementation clarifications
 
-22. `PlanDiagnostics` uses the closed `DiagnosticMetric` ADT. String-keyed
-    metrics were rejected during the type-discipline review because they would
-    weaken observable quality claims into an untyped bag.
+22. `PlanDiagnostics` uses validated `MetricId` values (`Metrics.*` for
+    built-ins). String-keyed metrics were rejected during the type-discipline
+    review; the open identifier restores author extension without untyped bags.
 23. A definition may own a defensively copied sequence of `Labels`. The
     single-label factories remain the common API; multi-label grouped-stratified
     designs commit groups and strata together in their randomization key,
@@ -153,14 +154,7 @@ they do not replace laws or asymptotic cost guardrails.
 
 ## Open release gate
 
-The implementation-context type-discipline review is recorded under
-`docs/reviews/`. The user-authorized fresh-context review examined commit
-`3dc2d77` and found receipt-streaming/cost, exhaustive-oracle/diagnostic, and
-published-law gaps. Decisions 30–32 are the remediation; the independent
-review is not self-approved or waived. The public-usability reconciliation is
-recorded in
-`docs/reviews/scala-type-discipline-usability-2026-07-26.md`. Hosted JVM,
-Scala.js, Scala Native, and compatibility CI passed on commit `81e4a22`. The
-stable release remains open because the fixed-allocation tranche, its
-independent review, the ScalaFIM consumer rehearsal, and the final release
-freeze have not completed.
+Early development focuses on in-repo gates: hosted CI on HEAD, independent
+public-surface review (findings resolved), docs aligned with the façade, and
+ongoing benchmark / optimization hygiene. Sonatype publication and external
+consumer rehearsals are deferred. See `docs/release-readiness.md`.

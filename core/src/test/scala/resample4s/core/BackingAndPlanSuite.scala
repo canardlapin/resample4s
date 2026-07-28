@@ -10,7 +10,7 @@ final class BackingAndPlanSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   test("law 14: partition and selection backings are extensional") {
     val assignment = ints(0, 1, 2)
@@ -122,12 +122,15 @@ final class BackingAndPlanSuite extends munit.FunSuite:
     )
   }
 
-  test("map preserves coverage and zip validates shape") {
+  test("public map and zip drop coverage; preserving map retains it") {
     val shape = right(PlanShape.of(1, 2))
     val exact =
       Plan.fromGenerator[Int, Coverage.Exact](shape, _.fold)
-    val mapped: Plan[String, Coverage.Exact] = exact.map(_.toString)
+    val mapped: Plan[String, Coverage] = exact.map(_.toString)
     assertEquals(right(mapped.at(UnitKey(0, 1))), "1")
+    val preserved: Plan[String, Coverage.Exact] =
+      exact.mapPreservingCoverage(_.toString)
+    assertEquals(right(preserved.at(UnitKey(0, 1))), "1")
 
     val other =
       Plan.fromGenerator[Int, Coverage](
@@ -141,9 +144,41 @@ final class BackingAndPlanSuite extends munit.FunSuite:
 
     val exactOnce =
       Plan.fromGenerator[Int, Coverage.ExactOnce](shape, _.fold)
-    val mappedOnce: Plan[String, Coverage.ExactOnce] =
+    val mappedOnce: Plan[String, Coverage] =
       exactOnce.map(_.toString)
     assertEquals(mappedOnce.first, "0")
+    val preservedOnce: Plan[String, Coverage.ExactOnce] =
+      exactOnce.mapPreservingCoverage(_.toString)
+    assertEquals(preservedOnce.first, "0")
+  }
+
+  test("public map cannot forge ExactOnce coverage") {
+    val shape = right(PlanShape.of(1, 3))
+    val space = right(IndexSpace.of(3))
+    val units = Vector(
+      Split.unsafe(
+        right(Selection.from(ints(1, 2), space)),
+        right(Selection.from(ints(0), space))
+      ),
+      Split.unsafe(
+        right(Selection.from(ints(0, 2), space)),
+        right(Selection.from(ints(1), space))
+      ),
+      Split.unsafe(
+        right(Selection.from(ints(0, 1), space)),
+        right(Selection.from(ints(2), space))
+      )
+    )
+    val exact =
+      Plan.fromGenerator[Split[Selection], Coverage.ExactOnce](
+        shape,
+        key => units(key.fold)
+      )
+    val broken: Plan[Split[Selection], Coverage] =
+      exact.map(_ => exact.first)
+    val assessments = broken.materialize.map(_._2.assessment)
+    assertEquals(assessments.distinct.size, 1)
+    assertEquals(assessments.size, 3)
   }
 
   test("fraction reduction and round-half-up use integer arithmetic") {

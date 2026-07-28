@@ -2,12 +2,13 @@ package resample4s.designs
 
 import resample4s.core.*
 
-/** Empty out-of-bag handling.
-  *
-  * `Redraw` conditions the bootstrap distribution on non-empty OOB and thus
-  * introduces bias, particularly for small populations. `Allow` preserves the
-  * unconditional distribution.
-  */
+/**
+ * Empty out-of-bag handling.
+ *
+ * `Redraw` conditions the bootstrap distribution on non-empty OOB and thus
+ * introduces bias, particularly for small populations. `Allow` preserves the
+ * unconditional distribution.
+ */
 enum OobPolicy derives CanEqual:
   case Allow
   case Redraw(maxAttempts: Int)
@@ -29,10 +30,11 @@ final class Bootstrap private[designs] (
       BootstrapSupport.ordinary(context, times, policy)
     }
 
-/** Whole-group bootstrap with exactly one draw per canonical group.
-  *
-  * Emitted row length is variable when group sizes differ.
-  */
+/**
+ * Whole-group bootstrap with exactly one draw per canonical group.
+ *
+ * Emitted row length is variable when group sizes differ.
+ */
 final class GroupedBootstrap private[designs] (
     val times: Int,
     val groups: Labels,
@@ -183,8 +185,7 @@ private[designs] object BootstrapSupport:
     var maximum = 0
     var group = 0
     while group < groupCount do
-      if members(group).length > maximum then
-        maximum = members(group).length
+      if members(group).length > maximum then maximum = members(group).length
       group += 1
     validatePotentialDrawSize(groupCount, maximum).flatMap { _ =>
       validatePolicy(times, policy).flatMap { maxAttempts =>
@@ -248,7 +249,7 @@ private[designs] object BootstrapSupport:
         case OobPolicy.Redraw(attempts) if attempts < 1 =>
           Left(DesignError.InvalidRedrawAttempts(attempts))
         case OobPolicy.Redraw(attempts) => Right(attempts)
-        case _                          => Right(1)
+        case _ => Right(1)
 
   private def acceptedSeeds(
       context: BuildContext,
@@ -298,7 +299,7 @@ private[designs] object BootstrapSupport:
       unit += 1
     error match
       case Some(value) => Left(value)
-      case None        => Right(IArray.unsafeFromArray(seeds))
+      case None => Right(IArray.unsafeFromArray(seeds))
 
   private def ordinarySupportSize(n: Int, seed: Seed): Int =
     val seen = Array.fill(n)(false)

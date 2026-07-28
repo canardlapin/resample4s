@@ -6,7 +6,7 @@ final class GroupedOracleSuite extends munit.FunSuite:
   private def right[A](value: Either[?, A]): A =
     value match
       case Right(result) => result
-      case Left(error)   => fail(s"expected Right, obtained $error")
+      case Left(error) => fail(s"expected Right, obtained $error")
 
   private def labels(codes: Vector[Int]): Labels =
     right(
@@ -58,16 +58,14 @@ final class GroupedOracleSuite extends munit.FunSuite:
       groups: Labels,
       folds: Int
   ): Int =
-    allocations(groups.cardinality, folds)
-      .map { allocation =>
-        val loads = Array.fill(folds)(0)
-        var row = 0
-        while row < groups.size do
-          loads(allocation(right(groups.at(row)))) += 1
-          row += 1
-        loads.max - loads.min
-      }
-      .min
+    allocations(groups.cardinality, folds).map { allocation =>
+      val loads = Array.fill(folds)(0)
+      var row = 0
+      while row < groups.size do
+        loads(allocation(right(groups.at(row)))) += 1
+        row += 1
+      loads.max - loads.min
+    }.min
 
   private def objective(
       assigned: Vector[Int],
@@ -99,15 +97,11 @@ final class GroupedOracleSuite extends munit.FunSuite:
       strata: Labels,
       folds: Int
   ): BigInt =
-    allocations(groups.cardinality, folds)
-      .map { allocation =>
-        val assigned =
-          Vector.tabulate(groups.size)(row =>
-            allocation(right(groups.at(row)))
-          )
-        objective(assigned, folds, strata)
-      }
-      .min
+    allocations(groups.cardinality, folds).map { allocation =>
+      val assigned =
+        Vector.tabulate(groups.size)(row => allocation(right(groups.at(row))))
+      objective(assigned, folds, strata)
+    }.min
 
   test("grouped LPT regret is bounded over the exhaustive small lattice") {
     var maximumRegret = 0
@@ -158,7 +152,9 @@ final class GroupedOracleSuite extends munit.FunSuite:
     )
   }
 
-  test("grouped-stratified regret is bounded over the exhaustive label lattice") {
+  test(
+    "grouped-stratified regret is bounded over the exhaustive label lattice"
+  ) {
     var maximumRegret = BigInt(0)
     var configurations = 0
     var size = 2
@@ -180,7 +176,8 @@ final class GroupedOracleSuite extends munit.FunSuite:
                     Seed.fromLong(0L)
                   )
               )
-            val achieved = objective(assignment(compiled.plan, size), folds, strata)
+            val achieved =
+              objective(assignment(compiled.plan, size), folds, strata)
             val regret = achieved - optimum
             assert(regret >= 0)
             assertEquals(

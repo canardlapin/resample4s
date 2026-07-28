@@ -2,13 +2,14 @@ package resample4s.designs
 
 import resample4s.core.*
 
-/** An externally supplied plan whose units are retained in repeat-major order.
-  *
-  * Fixed splits carry ordinary
-  * [[resample4s.core.Coverage]] because validation is deliberately local to
-  * each split. Assessment selections may overlap across units or omit
-  * population rows entirely.
-  */
+/**
+ * An externally supplied plan whose units are retained in repeat-major order.
+ *
+ * Fixed splits carry ordinary
+ * [[resample4s.core.Coverage]] because validation is deliberately local to
+ * each split. Assessment selections may overlap across units or omit
+ * population rows entirely.
+ */
 final class FixedSplits private[designs] (
     val shape: PlanShape,
     private val units: IArray[Split[Selection]],
@@ -31,8 +32,7 @@ final class FixedSplits private[designs] (
       )
     )
 
-  val definition
-      : DesignDefinition[Split[Selection], Coverage] =
+  val definition: DesignDefinition[Split[Selection], Coverage] =
     DesignDefinition.general(descriptor) { context =>
       if context.space.size != populationSize then
         Left(
@@ -74,11 +74,12 @@ object FixedSplits:
       split.analysis.codomain
     )
 
-  /** Imports a repeat-major array of already-validated splits.
-    *
-    * The outer array is copied. The immutable split values and their owned
-    * selection backing are retained.
-    */
+  /**
+   * Imports a repeat-major array of already-validated splits.
+   *
+   * The outer array is copied. The immutable split values and their owned
+   * selection backing are retained.
+   */
   def of(
       shape: PlanShape,
       units: IArray[Split[Selection]]
@@ -163,8 +164,7 @@ final class FixedPartitions[Cov <: Coverage.Exact] private[designs] (
       "folds" -> DescriptorValue.int(folds)
     )
 
-  val definition
-      : DesignDefinition[Split[Selection], Cov] =
+  val definition: DesignDefinition[Split[Selection], Cov] =
     route.manyLabels(descriptor, assignments)(_ => Right(spec))
 
 object FixedPartitions:
@@ -179,6 +179,18 @@ object FixedPartitions:
       IArray.unsafeFromArray(Array(assignments))
     build(owned, ExactDefinitionRoute.once)
 
+  /** Constructive exact-once schedule from canonical fold assignments. */
+  def completeOnce(
+      assignments: Labels
+  ): Either[DesignError, CompleteOnce] =
+    FoldPartition
+      .fromAssignments(
+        assignments.size,
+        assignments.cardinality,
+        assignments.toIArray
+      )
+      .map(CompleteOnce.fromPartition)
+
   /** Imports one canonical assignment per repeat and proves exact coverage. */
   def repeated(
       assignments: IArray[Labels]
@@ -186,8 +198,7 @@ object FixedPartitions:
     DesignError,
     FixedPartitions[Coverage.Exact]
   ] =
-    if assignments.isEmpty then
-      Left(DesignError.InvalidPlanShape(0, 0))
+    if assignments.isEmpty then Left(DesignError.InvalidPlanShape(0, 0))
     else
       val owned = new Array[Labels](assignments.length)
       var index = 0
@@ -252,3 +263,25 @@ object FixedPartitions:
               route
             )
           }
+
+/** Familiar alias for importing externally supplied train/test allocations. */
+object PredefinedSplit:
+  export FixedSplits.{once, of}
+
+  /** Exact-once fold assignments (sklearn-style predefined split). */
+  def partitions(
+      assignments: Labels
+  ): Either[DesignError, FixedPartitions[Coverage.ExactOnce]] =
+    FixedPartitions.once(assignments)
+
+  /** Exact per-repeat fold assignments. */
+  def partitions(
+      assignments: IArray[Labels]
+  ): Either[DesignError, FixedPartitions[Coverage.Exact]] =
+    FixedPartitions.repeated(assignments)
+
+  /** Constructive exact-once schedule from fold-of-row assignments. */
+  def completeOnce(
+      assignments: Labels
+  ): Either[DesignError, CompleteOnce] =
+    FixedPartitions.completeOnce(assignments)
