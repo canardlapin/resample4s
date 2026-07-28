@@ -20,6 +20,15 @@ final class Labels private (
 
   def toIArray: IArray[Int] = codes
 
+  /**
+   * Proves that every class in these labels is wholly contained in one class
+   * of `coarser`.
+   */
+  def refines(
+      coarser: Labels
+  ): Either[DesignError, LabelRefinement] =
+    LabelRefinement.of(this, coarser)
+
   private[resample4s] def unsafeAt(index: Int): Int = codes(index)
 
   /**
@@ -192,3 +201,53 @@ object Labels:
     new Labels(IArray.unsafeFromArray(owned), ordered.size)
 
   given CanEqual[Labels, Labels] = CanEqual.derived
+
+/**
+ * Evidence that `finer` is a refinement of `coarser`.
+ *
+ * Construction is validating: a finer class may belong to exactly one
+ * coarser class, while multiple finer classes may share a coarser class.
+ */
+final class LabelRefinement private (
+    val finer: Labels,
+    val coarser: Labels
+):
+  override def equals(other: Any): Boolean =
+    other match
+      case that: LabelRefinement =>
+        finer == that.finer && coarser == that.coarser
+      case _ => false
+
+  override def hashCode(): Int =
+    31 * finer.hashCode() + coarser.hashCode()
+
+object LabelRefinement:
+  def of(
+      finer: Labels,
+      coarser: Labels
+  ): Either[DesignError, LabelRefinement] =
+    if finer.size != coarser.size then
+      Left(DesignError.LengthMismatch(finer.size, coarser.size))
+    else
+      val parent = Array.fill(finer.cardinality)(-1)
+      var index = 0
+      var error: Option[DesignError] = None
+      while index < finer.size && error.isEmpty do
+        val child = finer.unsafeAt(index)
+        val observedParent = coarser.unsafeAt(index)
+        if parent(child) < 0 then parent(child) = observedParent
+        else if parent(child) != observedParent then
+          error = Some(
+            DesignError.LabelRefinementViolation(
+              child,
+              parent(child),
+              observedParent,
+              index
+            )
+          )
+        index += 1
+      error match
+        case Some(value) => Left(value)
+        case None => Right(new LabelRefinement(finer, coarser))
+
+  given CanEqual[LabelRefinement, LabelRefinement] = CanEqual.derived

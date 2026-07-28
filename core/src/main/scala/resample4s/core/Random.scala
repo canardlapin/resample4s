@@ -3,9 +3,27 @@ package resample4s.core
 opaque type Seed = Long
 
 object Seed:
+  /** Stable identity for public path-based seed derivation. */
+  val derivationAlgorithm: AlgorithmId =
+    AlgorithmId.unsafe("seed-path/v1")
+
   def fromLong(value: Long): Seed = value
 
-  extension (seed: Seed) def value: Long = seed
+  extension (seed: Seed)
+    def value: Long = seed
+
+    /**
+     * Derives a deterministic child seed from this root and a typed path.
+     *
+     * The result depends only on the root, path, and
+     * [[derivationAlgorithm]], so callers may address replicate-local streams
+     * independently of scheduling and total plan capacity.
+     */
+    def derive(path: StreamPath): Seed =
+      Rand.derive(seed, Seed.PublicDerivationKey, path)
+
+  private val PublicDerivationKey: DesignKey =
+    DesignKey.fromLong(0x736565642d706174L)
 
 opaque type DesignKey = Long
 

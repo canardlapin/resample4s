@@ -9,6 +9,7 @@ package resample4s
  */
 package object kernel:
   export resample4s.core.{
+    AlgorithmId,
     Coverage,
     CompleteOnce,
     CompletePerRepeat,
@@ -20,11 +21,15 @@ package object kernel:
     IndexSpace,
     Injection,
     Labels,
+    LabelRefinement,
     Permutation,
     Plan,
     PlanShape,
     Reindexing,
     Seed,
+    StreamDomain,
+    StreamPath,
+    StreamSegment,
     Selection,
     Split,
     SplitPlans,
@@ -39,3 +44,5 @@ package object kernel:
     UnknownFold,
     UnknownUnit
   }
+  export resample4s.core.Seed.{derive, value}
+  export resample4s.core.AlgorithmId.value

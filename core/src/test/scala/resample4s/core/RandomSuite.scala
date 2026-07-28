@@ -138,6 +138,32 @@ final class RandomSuite extends munit.FunSuite:
     assertEquals(first.value, 1064180939181588761L)
   }
 
+  test("public seed-path derivation has a pinned algorithm and golden values") {
+    assertEquals(Seed.derivationAlgorithm.value, "seed-path/v1")
+
+    val repeat =
+      right(StreamPath.of(StreamDomain.Repeat, 17))
+        .append(StreamDomain.Unit, 3)
+    val reversed =
+      right(StreamPath.of(StreamDomain.Unit, 3))
+        .append(StreamDomain.Repeat, 17)
+    val root = Seed.fromLong(90210L)
+
+    assertEquals(
+      root.derive(right(repeat)).value,
+      -3497511708555549203L
+    )
+    assertEquals(root.derive(right(repeat)), root.derive(right(repeat)))
+    assertNotEquals(root.derive(right(repeat)), root.derive(right(reversed)))
+    assertEquals(
+      Seed
+        .fromLong(0L)
+        .derive(right(StreamPath.of(StreamDomain.Repeat, 0)))
+        .value,
+      -3984022997235375892L
+    )
+  }
+
   test("stream paths reject negative ordinals") {
     assertEquals(
       StreamPath.of(StreamDomain.Unit, -1),

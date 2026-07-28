@@ -78,6 +78,14 @@ val groups: Groups = Groups.from(subjectIds).toOption.get
 val strata: Strata = Strata.from(classLabels).toOption.get
 ```
 
+When two label systems have a containment relationship, validate it once and
+carry typed evidence:
+
+```scala
+val nesting: Either[DesignError, LabelRefinement] =
+  groups.labels.refines(strata.labels)
+```
+
 ## Bootstrap reveals Draw
 
 ```scala
@@ -163,6 +171,8 @@ The façade exposes ordinary constructors for:
 - unconditional / redrawing / fail-on-empty-OOB bootstrap;
 - leave-one-out and delete-one jackknife;
 - free and within-block permutation tests;
+- equal-sized whole-group permutations via `PermutationTest.wholeGroups`,
+  preserving row order within each group;
 - nested cross-validation via `Nested.kFold` / `Nested.plan`, plus the
   general `Nested.of` / `Nested.combine` combinator.
 
@@ -188,6 +198,18 @@ Randomized designs use a fixed SplitMix64 generator, unbiased bounded draws,
 Fisher-Yates, and ordered domain-separated stream paths. Golden fixtures lock
 outputs on all three platforms; laws and exhaustive oracles provide the
 correctness evidence.
+
+Integrators that need schedule-independent replicate streams can address them
+directly through the stable kernel ring:
+
+```scala
+import resample4s.kernel.*
+
+val path = StreamPath.of(StreamDomain.Repeat, replicate)
+val childSeed = path.map(rootSeed.derive)
+```
+
+`Seed.derivationAlgorithm` identifies this mapping as `seed-path/v1`.
 
 `PlanReceipt` verifies a recompiled plan against design, labels, population, and
 assignment fingerprints. It does not reconstruct a design. The built-in

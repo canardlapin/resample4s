@@ -71,6 +71,9 @@ object ErrorCodes:
   val potentialDrawSizeExceeded: ErrorCode =
     ErrorCode.unsafe("potential-draw-size-exceeded")
   val invalidDeleteCount: ErrorCode = ErrorCode.unsafe("invalid-delete-count")
+  val labelRefinementViolation: ErrorCode =
+    ErrorCode.unsafe("label-refinement-violation")
+  val unequalGroupSizes: ErrorCode = ErrorCode.unsafe("unequal-group-sizes")
 
 /**
  * Open design/compile failure channel.
@@ -308,6 +311,25 @@ object DesignError:
     val code: ErrorCode = ErrorCodes.invalidDeleteCount
     val message: String =
       s"delete count $delete is invalid for population $populationSize"
+
+  final case class LabelRefinementViolation(
+      finerClass: Int,
+      expectedCoarserClass: Int,
+      actualCoarserClass: Int,
+      index: Int
+  ) extends DesignError:
+    val code: ErrorCode = ErrorCodes.labelRefinementViolation
+    val message: String =
+      s"finer class $finerClass crosses coarser classes $expectedCoarserClass and $actualCoarserClass at index $index"
+
+  final case class UnequalGroupSizes(
+      expected: Int,
+      actual: Int,
+      group: Int
+  ) extends DesignError:
+    val code: ErrorCode = ErrorCodes.unequalGroupSizes
+    val message: String =
+      s"group $group has size $actual, expected $expected"
 
   given CanEqual[DesignError, DesignError] = CanEqual.derived
 

@@ -461,6 +461,43 @@ object PermutationLaws:
         preserved
     }
 
+  def wholeGroups(
+      permutation: Permutation,
+      groups: Labels
+  ): Prop =
+    Prop.secure {
+      if permutation.domain != groups.size || !isBijection(permutation) then
+        false
+      else
+        val members =
+          Array.fill(groups.cardinality)(Vector.empty[Int])
+        var row = 0
+        var labelsValid = true
+        while row < groups.size && labelsValid do
+          groups.at(row) match
+            case Left(_) => labelsValid = false
+            case Right(group) => members(group) = members(group) :+ row
+          row += 1
+        val expectedSize = members(0).size
+        var destinationGroup = 0
+        var preserved =
+          labelsValid && members.forall(_.size == expectedSize)
+        while destinationGroup < members.length && preserved do
+          val destination = members(destinationGroup)
+          permutation.at(destination(0)).flatMap(groups.at) match
+            case Left(_) => preserved = false
+            case Right(sourceGroup) =>
+              var position = 0
+              while position < destination.length && preserved do
+                preserved = permutation
+                  .at(destination(position))
+                  .toOption
+                  .contains(members(sourceGroup)(position))
+                position += 1
+          destinationGroup += 1
+        preserved
+    }
+
   private def isBijection(permutation: Permutation): Boolean =
     val seen = Array.fill(permutation.codomain)(false)
     var index = 0

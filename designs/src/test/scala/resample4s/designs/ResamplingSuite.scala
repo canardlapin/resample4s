@@ -569,6 +569,72 @@ final class ResamplingSuite extends munit.FunSuite:
     assertEquals(identities.distinct, Vector(Vector(0)))
   }
 
+  test("whole-group permutation emits a pinned row permutation") {
+    val groups = labels(7, 9, 7, 9, 11, 11)
+    val design = WholeGroupPermutation(groups, 3)
+    assertEquals(
+      design.definition.descriptor.algorithm.value,
+      "permutation-whole-groups/v1"
+    )
+    val plan =
+      right(
+        design.compile(
+          right(IndexSpace.of(groups.size)),
+          Seed.fromLong(2026L)
+        )
+      ).plan
+    val observed =
+      plan.materialize.map((_, permutation) => vector(permutation))
+    assertEquals(
+      observed,
+      Vector(
+        Vector(1, 4, 3, 5, 0, 2),
+        Vector(0, 1, 2, 3, 4, 5),
+        Vector(0, 1, 2, 3, 4, 5)
+      )
+    )
+  }
+
+  test("whole-group permutation preserves ordered group contents") {
+    val groups = labels(1, 2, 1, 3, 2, 3)
+    val members = Vector(Vector(0, 2), Vector(1, 4), Vector(3, 5))
+    val plan =
+      right(
+        WholeGroupPermutation(groups, 50).compile(
+          right(IndexSpace.of(groups.size)),
+          Seed.fromLong(88L)
+        )
+      ).plan
+
+    plan.iterator.foreach { (_, permutation) =>
+      assertEquals(vector(permutation).sorted, Vector.range(0, groups.size))
+      members.foreach { destination =>
+        val mapped = destination.map(index => right(permutation.at(index)))
+        val sourceGroup = right(groups.at(mapped.head))
+        val source = members(sourceGroup)
+        assertEquals(mapped, source)
+      }
+    }
+    assert(
+      plan.materialize
+        .map((_, permutation) => vector(permutation))
+        .distinct
+        .size >=
+        2
+    )
+  }
+
+  test("whole-group permutation rejects unequal group sizes") {
+    val groups = labels(1, 1, 2, 2, 2)
+    assertEquals(
+      WholeGroupPermutation(groups, 1).compile(
+        right(IndexSpace.of(groups.size)),
+        Seed.fromLong(0L)
+      ),
+      Left(DesignError.UnequalGroupSizes(2, 3, 1))
+    )
+  }
+
   test("invalid phase-3 configurations return typed errors") {
     val space = right(IndexSpace.of(5))
     val seed = Seed.fromLong(0L)

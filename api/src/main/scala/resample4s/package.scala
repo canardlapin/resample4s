@@ -1,5 +1,6 @@
 package object resample4s:
   export resample4s.core.{
+    AlgorithmId,
     Coverage,
     CompleteOnce,
     CompletePerRepeat,
@@ -10,11 +11,15 @@ package object resample4s:
     IndexSpace,
     Injection,
     Labels,
+    LabelRefinement,
     Permutation,
     Plan,
     PlanShape,
     Reindexing,
     Seed,
+    StreamDomain,
+    StreamPath,
+    StreamSegment,
     Selection,
     Split,
     SplitPlans,
@@ -25,6 +30,8 @@ package object resample4s:
     ErrorCodes,
     pull
   }
+  export resample4s.core.Seed.{derive, value}
+  export resample4s.core.AlgorithmId.value
 
   export resample4s.designs.NestedFold
 

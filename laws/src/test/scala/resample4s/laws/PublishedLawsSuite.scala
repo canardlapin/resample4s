@@ -108,6 +108,8 @@ final class PublishedLawsSuite extends munit.FunSuite:
   }
 
   test("published bootstrap and permutation laws pass catalogue values") {
+    given DigestAlgorithm = DigestAlgorithm.fnv1a64
+
     val n = 8
     val space = right(IndexSpace.of(n))
     val bootstrap =
@@ -145,6 +147,66 @@ final class PublishedLawsSuite extends munit.FunSuite:
     within.iterator.foreach { (_, permutation) =>
       check(PermutationLaws.withinBlocks(permutation, blocks))
     }
+
+    val groups = labels(1, 2, 1, 2, 3, 3, 4, 4)
+    val wholeGroupDesign = WholeGroupPermutation(groups, 20)
+    val wholeGroups =
+      right(
+        wholeGroupDesign.compile(space, Seed.fromLong(74L))
+      ).plan
+    wholeGroups.iterator.foreach { (_, permutation) =>
+      check(PermutationLaws.wholeGroups(permutation, groups))
+    }
+
+    val reversesWithinGroups =
+      right(Permutation.from(ints(2, 3, 0, 1, 5, 4, 7, 6)))
+    checkFails(
+      PermutationLaws.wholeGroups(reversesWithinGroups, groups)
+    )
+    check(
+      DesignLaws.deterministic(
+        wholeGroupDesign,
+        space,
+        Seed.fromLong(74L)
+      )(_ == _)
+    )
+    check(
+      DesignLaws.totalUnits(
+        wholeGroupDesign,
+        space,
+        Seed.fromLong(74L)
+      )
+    )
+    check(
+      DesignLaws.costConformance(
+        wholeGroupDesign,
+        space,
+        Seed.fromLong(74L),
+        WorkMeasurement.of[Permutation](groups.size.toLong + 20L)(
+          permutation => 2L * permutation.domain.toLong,
+          permutation => permutation.domain.toLong
+        )
+      )
+    )
+    check(
+      DesignLaws.receiptReplay(
+        wholeGroupDesign,
+        space,
+        Seed.fromLong(74L),
+        right(Summary.of("resample4s/size", groups.size.toLong))
+      )
+    )
+
+    val recodedGroups = labels(9, 2, 9, 2, -5, -5, 100, 100)
+    check(
+      DesignLaws.labelRecoding(
+        wholeGroupDesign,
+        WholeGroupPermutation(recodedGroups, 20),
+        IArray.unsafeFromArray(Array((groups, recodedGroups))),
+        space,
+        Seed.fromLong(74L)
+      )(_ == _)
+    )
   }
 
   test("published metamorphic and perturbation laws observe assignments") {

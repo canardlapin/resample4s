@@ -288,36 +288,69 @@ object Jackknife:
     ): Either[DesignError, SplitPlan[Split[Selection], Coverage.ExactOnce]] =
       Facade.plan(D.Jackknife.delete1, samples, seed)
 
+private enum PermutationMode derives CanEqual:
+  case Free
+  case Within(blocks: Labels)
+  case WholeGroups(groups: Labels)
+
 final class PermutationTest private (
     val resamples: Int,
-    private val blocks: Option[Labels]
+    private val mode: PermutationMode
 ):
   def plan(
       samples: Int,
       seed: Long
   ): Either[DesignError, SplitPlan[Permutation, Coverage]] =
-    blocks match
-      case None =>
+    mode match
+      case PermutationMode.Free =>
         Facade.plan(D.PermutationDesign(resamples), samples, seed)
-      case Some(labels) =>
+      case PermutationMode.Within(labels) =>
         Facade.plan(
           D.PermutationDesign.within(labels, resamples),
+          samples,
+          seed
+        )
+      case PermutationMode.WholeGroups(labels) =>
+        Facade.plan(
+          D.WholeGroupPermutation(labels, resamples),
           samples,
           seed
         )
 
 object PermutationTest:
   def apply(resamples: Int): PermutationTest =
-    new PermutationTest(resamples, None)
+    new PermutationTest(resamples, PermutationMode.Free)
 
   def within(blocks: Blocks, resamples: Int): PermutationTest =
-    new PermutationTest(resamples, Some(blocks.labels))
+    new PermutationTest(
+      resamples,
+      PermutationMode.Within(blocks.labels)
+    )
 
   def within(
       blocks: IndexedSeq[Int],
       resamples: Int
   ): Either[DesignError, PermutationTest] =
     Blocks.from(blocks).map(within(_, resamples))
+
+  def wholeGroups(groups: Groups, resamples: Int): PermutationTest =
+    new PermutationTest(
+      resamples,
+      PermutationMode.WholeGroups(groups.labels)
+    )
+
+  def wholeGroups(
+      groups: IndexedSeq[Int],
+      resamples: Int
+  ): Either[DesignError, PermutationTest] =
+    Groups.from(groups).map(wholeGroups(_, resamples))
+
+  @targetName("wholeGroupsArray")
+  def wholeGroups(
+      groups: Array[Int],
+      resamples: Int
+  ): Either[DesignError, PermutationTest] =
+    Groups.from(groups).map(wholeGroups(_, resamples))
 
 /** Import external train/test allocations or fold assignments. */
 object PredefinedSplit:

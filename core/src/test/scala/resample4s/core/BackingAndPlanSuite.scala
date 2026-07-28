@@ -214,3 +214,27 @@ final class BackingAndPlanSuite extends munit.FunSuite:
       Labels.of(denseCodes, 3, denseCodes.length)
     )
   }
+
+  test("label refinement returns evidence and rejects crossing classes") {
+    val clusters = right(Labels.dense(ints(1, 1, 2, 2, 3, 3, 4, 4)))
+    val strata = right(Labels.dense(ints(9, 9, 9, 9, 8, 8, 8, 8)))
+    val proof = right(clusters.refines(strata))
+    assertEquals(proof.finer, clusters)
+    assertEquals(proof.coarser, strata)
+    assertEquals(
+      LabelRefinement.of(clusters, strata),
+      Right(proof)
+    )
+
+    val crossing = right(Labels.dense(ints(0, 1, 2, 3, 0, 1, 2, 3)))
+    assertEquals(
+      crossing.refines(strata),
+      Left(DesignError.LabelRefinementViolation(0, 0, 1, 4))
+    )
+
+    val short = right(Labels.dense(ints(0, 0)))
+    assertEquals(
+      clusters.refines(short),
+      Left(DesignError.LengthMismatch(8, 2))
+    )
+  }

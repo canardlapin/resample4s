@@ -54,6 +54,33 @@ final class FacadeSuite extends munit.FunSuite:
     }
   }
 
+  test("whole-group permutation is available from the ordinary façade") {
+    val plan =
+      right(
+        right(
+          PermutationTest
+            .wholeGroups(Array(1, 2, 1, 2, 3, 3), resamples = 4)
+        )
+          .plan(samples = 6, seed = 5L)
+      )
+    plan.foreach { permutation =>
+      assertEquals(permutation.size, 6)
+      assertEquals(permutation.toVector.sorted, Vector.range(0, 6))
+    }
+  }
+
+  test("replicate-local seed derivation is in the ordinary façade") {
+    val root = Seed.fromLong(9L)
+    val path = right(StreamPath.of(StreamDomain.Repeat, 3))
+    val first = root.derive(path)
+    assertEquals(first, root.derive(path))
+    assertNotEquals(
+      first,
+      root.derive(right(StreamPath.of(StreamDomain.Repeat, 4)))
+    )
+    assertEquals(Seed.derivationAlgorithm.value, "seed-path/v1")
+  }
+
   test("holdout and shuffle split accept SplitSize") {
     val holdout = right(
       Holdout(SplitSize.count(24)).plan(samples = 120, seed = 1L)
